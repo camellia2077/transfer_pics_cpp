@@ -26,13 +26,20 @@ using namespace std;
 // --- Bring specific nested namespace members into scope ---
 using std::filesystem::path; // Now we can use 'path' directly
 
-// --- 新增：定义颜色方案枚举 ---
+// --- 修改：扩展颜色方案枚举 ---
 enum class ColorScheme {
-    BLACK_ON_WHITE, // 黑字白底 (原默认)
-    WHITE_ON_BLACK, // 白字黑底
-    GREEN_ON_BLACK, // 绿字黑底
-    PURPLE_ON_BLACK // 紫字黑底
-    // 可以根据需要添加更多方案
+    BLACK_ON_WHITE,    // 黑字白底 (固定颜色)
+    WHITE_ON_BLACK,    // 白字黑底 (固定颜色)
+    GREEN_ON_BLACK,    // 绿字黑底 (固定颜色)
+    PURPLE_ON_BLACK,   // 紫字黑底 (固定颜色)
+    COLOR_ON_WHITE,    // 彩色字白底 (颜色来自原图)
+    COLOR_ON_BLACK     // 彩色字黑底 (颜色来自原图)
+};
+
+// --- 新增：结构体用于存储字符及其颜色 ---
+struct CharColorInfo {
+    char character;
+    unsigned char color[3]; // R, G, B from original image
 };
 
 // Helper function to read a file into a vector of unsigned char
@@ -55,48 +62,61 @@ vector<unsigned char> read_file(const string& filename) {
 
 int main() {
     string imagePath;
-    const int targetWidth = 256;
+    const int targetWidth = 128; // 调小宽度以便观察彩色效果
     const double charAspectRatioCorrection = 2.0;
-    const string fontPath = "C:\\Computer\\Code666\\github_cpp\\pics\\Consolas.ttf";
+    const string fontPath = "C:\\Computer\\Code666\\github_cpp\\pics\\Consolas.ttf"; // 确保字体路径正确
     const float fontSize = 15.0f;
-    const string baseOutputFilename = "output_ascii_art.png";
+    const string baseOutputFilename = "output_ascii_art_color.png"; // 修改文件名以区分
     const string outputSubDirName = "ascii_output";
 
-    // --- 新增：在此处选择颜色方案 ---
+    // --- 在此处选择颜色方案 ---
     // 通过修改下面这行来选择颜色搭配
-    const ColorScheme currentScheme = ColorScheme::PURPLE_ON_BLACK;
+    const ColorScheme currentScheme = ColorScheme::COLOR_ON_BLACK; // <--- 选择彩色模式
     // 可选项:
     // ColorScheme::BLACK_ON_WHITE
     // ColorScheme::WHITE_ON_BLACK
     // ColorScheme::GREEN_ON_BLACK
     // ColorScheme::PURPLE_ON_BLACK
+    // ColorScheme::COLOR_ON_WHITE // <--- 新增
+    // ColorScheme::COLOR_ON_BLACK // <--- 新增
+    // --- 颜色方案选择结束 ---
 
-    // --- 修改：声明颜色变量，但不立即初始化 ---
     unsigned char bgColor[3];
-    unsigned char fgColor[3];
+    unsigned char fgColor[3]; // fgColor 现在只用于固定颜色模式
 
-    // --- 新增：根据选择的方案设置颜色值 ---
+    // --- 根据选择的方案设置颜色值 ---
     switch (currentScheme) {
         case ColorScheme::WHITE_ON_BLACK:
-            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
-            fgColor[0] = 255; fgColor[1] = 255; fgColor[2] = 255; // White foreground
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;
+            fgColor[0] = 255; fgColor[1] = 255; fgColor[2] = 255;
             break;
         case ColorScheme::GREEN_ON_BLACK:
-            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
-            fgColor[0] = 0;   fgColor[1] = 255; fgColor[2] = 0;   // Green foreground
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;
+            fgColor[0] = 0;   fgColor[1] = 255; fgColor[2] = 0;
             break;
         case ColorScheme::PURPLE_ON_BLACK:
-            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
-            fgColor[0] = 128; fgColor[1] = 0;   fgColor[2] = 128; // Purple foreground (暗紫色)
-            // 或者亮紫色: fgColor[0] = 255; fgColor[1] = 0; fgColor[2] = 255;
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;
+            fgColor[0] = 128; fgColor[1] = 0;   fgColor[2] = 128;
             break;
-        case ColorScheme::BLACK_ON_WHITE:
-        default: // 将默认值设为黑字白底
+        // --- 新增彩色模式的背景设置 ---
+        case ColorScheme::COLOR_ON_WHITE:
             bgColor[0] = 255; bgColor[1] = 255; bgColor[2] = 255; // White background
-            fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;   // Black foreground
+            // fgColor 在此模式下不重要，但可以给个默认值
+            fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;
+            break;
+        case ColorScheme::COLOR_ON_BLACK:
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
+             // fgColor 在此模式下不重要
+            fgColor[0] = 255;   fgColor[1] = 255;   fgColor[2] = 255;
+            break;
+        // --- 彩色模式结束 ---
+        case ColorScheme::BLACK_ON_WHITE:
+        default:
+            bgColor[0] = 255; bgColor[1] = 255; bgColor[2] = 255;
+            fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;
             break;
     }
-
+    // --- 颜色设置结束 ---
 
     cout << "请输入图片文件路径: ";
     getline(cin, imagePath);
@@ -138,16 +158,21 @@ int main() {
     }
 
     int width, height, channels;
-    unsigned char *imgData = stbi_load(imagePath.c_str(), &width, &height, &channels, 0);
+    // --- 修改：强制加载至少3通道 (RGB) 以获取颜色信息 ---
+    // 如果原始图像没有3通道，stb_image 会尝试转换，但这可能不是最佳颜色表示
+    // 如果原始图像是灰度图，彩色模式可能效果不佳
+    unsigned char *imgData = stbi_load(imagePath.c_str(), &width, &height, &channels, 3); // 请求 3 通道
 
     if (imgData == nullptr) {
-        cerr << "错误: 无法加载图片 '" << imagePath << "'" << endl;
+        cerr << "错误: 无法加载图片 '" << imagePath << "' (或无法转换为RGB)" << endl;
         cerr << "STB Image 错误原因: " << stbi_failure_reason() << endl;
         return 1;
     }
+    // 更新实际加载的通道数（现在应该是 3 或加载失败）
+    channels = 3;
     unique_ptr<unsigned char, void(*)(void*)> imgDataPtr(imgData, stbi_image_free);
 
-    cout << "图片加载成功: " << width << "x" << height << ", 通道数: " << channels << endl;
+    cout << "图片加载成功 (强制RGB): " << width << "x" << height << ", 通道数: " << channels << endl;
     cout << "目标ASCII宽度 (来自变量): " << targetWidth << endl;
 
     int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth) / (width * charAspectRatioCorrection)));
@@ -160,28 +185,47 @@ int main() {
     double xScale = static_cast<double>(width) / targetWidth;
     double yScale = static_cast<double>(height) / targetHeight;
 
-    vector<string> asciiResultLines;
-    asciiResultLines.reserve(targetHeight);
+    // --- 修改：使用新的数据结构存储字符和颜色 ---
+    vector<vector<CharColorInfo>> asciiResultData;
+    asciiResultData.reserve(targetHeight);
 
+    // --- 修改：ASCII 生成循环，存储字符和颜色 ---
     for (int yOut = 0; yOut < targetHeight; ++yOut) {
-        string currentLine = "";
-        currentLine.reserve(targetWidth);
+        vector<CharColorInfo> currentLineData; // 存储当前行的字符和颜色信息
+        currentLineData.reserve(targetWidth);
         for (int xOut = 0; xOut < targetWidth; ++xOut) {
             int xImg = static_cast<int>(floor((xOut + 0.5) * xScale));
             int yImg = static_cast<int>(floor((yOut + 0.5) * yScale));
             xImg = max(0, min(xImg, width - 1));
             yImg = max(0, min(yImg, height - 1));
-            size_t pixelOffset = (static_cast<size_t>(yImg) * width + xImg) * channels;
+
+            // 确保使用 3 通道计算偏移
+            size_t pixelOffset = (static_cast<size_t>(yImg) * width + xImg) * 3;
+
+            // 获取 R, G, B (现在保证有3通道)
             unsigned char r = imgData[pixelOffset];
-            unsigned char g = (channels > 1) ? imgData[pixelOffset + 1] : r;
-            unsigned char b = (channels > 2) ? imgData[pixelOffset + 2] : r;
+            unsigned char g = imgData[pixelOffset + 1];
+            unsigned char b = imgData[pixelOffset + 2];
+
+            // 计算灰度值以选择字符
             int gray = (static_cast<int>(r) + g + b) / 3;
             int asciiIndex = static_cast<int>(floor((gray / 255.0f) * (numAsciiChars - 1)));
             asciiIndex = max(0, min(asciiIndex, numAsciiChars - 1));
-            currentLine += asciiChars[static_cast<size_t>(asciiIndex)];
+
+            // 创建 CharColorInfo 对象并填充
+            CharColorInfo info;
+            info.character = asciiChars[static_cast<size_t>(asciiIndex)];
+            info.color[0] = r;
+            info.color[1] = g;
+            info.color[2] = b;
+
+            // 添加到当前行数据
+            currentLineData.push_back(info);
         }
-         asciiResultLines.push_back(currentLine);
+        // 将当前行数据添加到结果中
+        asciiResultData.push_back(currentLineData);
     }
+    // --- ASCII 生成结束 ---
 
     cout << "\n正在渲染ASCII艺术为图片..." << endl;
 
@@ -213,7 +257,7 @@ int main() {
     const int outputChannels = 3;
 
     vector<unsigned char> outputImageData(static_cast<size_t>(outputImageWidth) * outputImageHeight * outputChannels);
-    // --- 背景填充现在使用 switch 设置好的 bgColor ---
+    // 背景填充
     for (size_t i = 0; i < outputImageData.size(); i += outputChannels) {
         outputImageData[i]     = bgColor[0];
         outputImageData[i + 1] = bgColor[1];
@@ -221,9 +265,11 @@ int main() {
     }
 
     int currentY = ascent;
-    for (const string& line : asciiResultLines) {
+    // --- 修改：渲染循环，使用 CharColorInfo ---
+    for (const auto& lineData : asciiResultData) { // 遍历行数据
         int currentX = 0;
-        for (char c : line) {
+        for (const auto& charInfo : lineData) { // 遍历行中的 CharColorInfo
+            char c = charInfo.character; // 获取字符
             int char_w, char_h, xoff, yoff;
             unsigned char* bitmap = stbtt_GetCodepointBitmap(&fontInfo, scale, scale, c, &char_w, &char_h, &xoff, &yoff);
              if (bitmap) {
@@ -236,12 +282,22 @@ int main() {
                          int outY = drawY_base + y;
                          if (outX >= 0 && outX < outputImageWidth && outY >= 0 && outY < outputImageHeight) {
                              unsigned char alpha = bitmap[y * char_w + x];
-                             if (alpha > 128) {
+                             if (alpha > 128) { // 如果字体像素不透明
                                  size_t pixelIndex = (static_cast<size_t>(outY) * outputImageWidth + outX) * outputChannels;
-                                 // --- 字符绘制现在使用 switch 设置好的 fgColor ---
-                                 outputImageData[pixelIndex]     = fgColor[0];
-                                 outputImageData[pixelIndex + 1] = fgColor[1];
-                                 outputImageData[pixelIndex + 2] = fgColor[2];
+
+                                 // --- 修改：根据模式选择颜色 ---
+                                 if (currentScheme == ColorScheme::COLOR_ON_WHITE || currentScheme == ColorScheme::COLOR_ON_BLACK) {
+                                     // 彩色模式：使用存储的原始颜色
+                                     outputImageData[pixelIndex]     = charInfo.color[0]; // R
+                                     outputImageData[pixelIndex + 1] = charInfo.color[1]; // G
+                                     outputImageData[pixelIndex + 2] = charInfo.color[2]; // B
+                                 } else {
+                                     // 固定颜色模式：使用全局 fgColor
+                                     outputImageData[pixelIndex]     = fgColor[0];
+                                     outputImageData[pixelIndex + 1] = fgColor[1];
+                                     outputImageData[pixelIndex + 2] = fgColor[2];
+                                 }
+                                 // --- 颜色选择结束 ---
                              }
                          }
                      }
@@ -255,6 +311,7 @@ int main() {
         }
         currentY += lineHeight;
     }
+    // --- 渲染循环结束 ---
 
     if (!stbi_write_png(finalOutputPathString.c_str(), outputImageWidth, outputImageHeight, outputChannels, outputImageData.data(), outputImageWidth * outputChannels)) {
         cerr << "错误: 无法将ASCII艺术保存为图片 '" << finalOutputPathString << "'" << endl;
