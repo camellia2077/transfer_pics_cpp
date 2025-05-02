@@ -5,7 +5,8 @@
 #include <algorithm>
 #include <fstream> // For reading font file
 #include <memory>  // For unique_ptr
-#include <filesystem> // For path manipulation (needs C++17)
+#include <filesystem> // For path manipulation and directory creation (needs C++17)
+#include <system_error> // For filesystem error handling
 
 // Define this macro so stb_image.h includes the implementation
 // Make sure this definition only appears in one .cpp file
@@ -26,20 +27,15 @@ using namespace std;
 using std::filesystem::path; // Now we can use 'path' directly
 
 // Helper function to read a file into a vector of unsigned char
-// Signature and internal types updated to reflect 'using namespace std'
 vector<unsigned char> read_file(const string& filename) {
-    // Use ifstream directly (from std namespace)
     ifstream file(filename, ios::binary | ios::ate);
     if (!file) {
-        // Use cerr and endl directly
         cerr << "错误: 无法打开文件 '" << filename << "'" << endl;
         return {};
     }
-    // Use streamsize directly
     streamsize size = file.tellg();
     file.seekg(0, ios::beg);
-    // Use vector directly
-    vector<unsigned char> buffer(static_cast<size_t>(size)); // 确保类型安全
+    vector<unsigned char> buffer(static_cast<size_t>(size));
     if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
          cerr << "错误: 无法读取文件 '" << filename << "'" << endl;
         return {};
@@ -49,114 +45,126 @@ vector<unsigned char> read_file(const string& filename) {
 
 
 int main() {
-    // Use string directly
     string imagePath;
-    const int targetWidth = 256; // 例如，设置为 256 个字符宽
-    const double charAspectRatioCorrection = 2.0; // 字符高宽比修正
+    const int targetWidth = 256;
+    const double charAspectRatioCorrection = 2.0;
     const string fontPath = "C:\\Computer\\Code666\\github_cpp\\pics\\Consolas.ttf";
-    const float fontSize = 15.0f;       // <--- 字体大小 (像素)
-    const string baseOutputFilename = "output_ascii_art.png"; // 定义基础输出文件名
-    const unsigned char bgColor[3] = {255, 255, 255}; // 背景色 (白色)
-    const unsigned char fgColor[3] = {0, 0, 0};       // 前景色/文字颜色 (黑色)
+    const float fontSize = 15.0f;
+    const string baseOutputFilename = "output_ascii_art.png";
+    // --- 定义要创建的子目录名称 ---
+    // 注意：使用非 ASCII 字符如 "莉" 可能导致跨平台或编码问题，推荐使用 ASCII 名称
+    const string outputSubDirName = "ascii_output";
+    // const string outputSubDirName = "莉"; // 如果你坚持使用，请注意风险
+    // --- 子目录名称定义结束 ---
+    const unsigned char bgColor[3] = {255, 255, 255};
+    const unsigned char fgColor[3] = {0, 0, 0};
 
-    // Use cout, getline, cin directly
     cout << "请输入图片文件路径: ";
-    getline(cin, imagePath); // Use getline for paths with spaces
+    getline(cin, imagePath);
 
-    // --- 构造输出路径 ---
-    // Use path directly (due to 'using std::filesystem::path;')
+    // --- 修改：构造输出路径并创建子目录 ---
     path inputPathObj(imagePath);
-    path outputDir = inputPathObj.parent_path(); // 获取父目录
-    path finalOutputPathObj = outputDir / baseOutputFilename; // 组合路径
-    // Use string directly
-    string finalOutputPathString = finalOutputPathObj.string(); // 转换为字符串以供 stbi 使用
+    path parentDir = inputPathObj.parent_path(); // 获取父目录
 
-    // 打印将要使用的输出路径（用于调试或确认）
+    // 构造子目录的完整路径
+    path outputSubDirPath = parentDir / outputSubDirName;
+
+    // 尝试创建子目录
+    try {
+        // create_directory 如果目录已存在，则返回 false 且不抛出异常
+        // 如果创建失败（例如权限问题），则抛出 filesystem_error
+        if (filesystem::create_directory(outputSubDirPath)) {
+            cout << "已创建输出子目录: " << outputSubDirPath.string() << endl;
+        } else {
+             // 目录已存在或创建失败但未抛出异常（理论上不应发生，除非并发）
+             if (!filesystem::exists(outputSubDirPath)) {
+                 // 如果目录不存在且创建失败，则报告错误
+                 cerr << "错误: 无法创建输出子目录，但目录似乎也不存在: " << outputSubDirPath.string() << endl;
+                 return 1; // 无法继续
+             }
+             // 如果目录已存在，则不需额外提示，继续执行
+        }
+    } catch (const filesystem::filesystem_error& e) {
+        cerr << "错误: 创建输出子目录时发生异常: " << outputSubDirPath.string() << endl;
+        cerr << "错误详情: " << e.what() << endl;
+        // 检查是否是因为目录已存在（虽然 create_directory 不应因此抛出）
+        if (!filesystem::is_directory(outputSubDirPath)) {
+             return 1; // 如果不是目录且创建失败，则无法继续
+        }
+         // 如果是因为其他原因（如权限），但目录确实是存在的，或许可以尝试继续？
+         // 这里选择退出更安全
+         // return 1;
+         // 或者仅打印警告并尝试继续（如果确定目录已存在）
+         cerr << "警告: 尝试继续，假设目录已存在..." << endl;
+
+
+    } catch (const std::exception& e) { // 捕获其他可能的标准异常
+        cerr << "错误: 创建目录时发生未知异常: " << e.what() << endl;
+        return 1;
+    }
+
+
+    // 组合最终的文件路径（在子目录内）
+    path finalOutputPathObj = outputSubDirPath / baseOutputFilename;
+    string finalOutputPathString = finalOutputPathObj.string();
+
     cout << "输出文件将保存到: " << finalOutputPathString << endl;
-    // --- 路径构造结束 ---
+    // --- 路径构造和目录创建结束 ---
 
-    // 验证硬编码的宽度是否有效
     if (targetWidth <= 0) {
         cerr << "错误: 配置的 targetWidth (" << targetWidth << ") 必须是正整数。" << endl;
         return 1;
     }
 
     int width, height, channels;
-    // Load the image file
     unsigned char *imgData = stbi_load(imagePath.c_str(), &width, &height, &channels, 0);
 
-    // Check if image loading was successful
     if (imgData == nullptr) {
         cerr << "错误: 无法加载图片 '" << imagePath << "'" << endl;
         cerr << "STB Image 错误原因: " << stbi_failure_reason() << endl;
-        return 1; // Return error code
+        return 1;
     }
-    // Use unique_ptr directly
     unique_ptr<unsigned char, void(*)(void*)> imgDataPtr(imgData, stbi_image_free);
 
-
     cout << "图片加载成功: " << width << "x" << height << ", 通道数: " << channels << endl;
-    cout << "目标ASCII宽度 (来自变量): " << targetWidth << endl; // 明确宽度来源
+    cout << "目标ASCII宽度 (来自变量): " << targetWidth << endl;
 
-
-    // Calculate target height based on target width and aspect ratio correction
     int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth) / (width * charAspectRatioCorrection)));
-    // Use max directly (from <algorithm> included in std)
-    targetHeight = max(1, targetHeight); // Ensure height is at least 1
+    targetHeight = max(1, targetHeight);
 
     cout << "计算出的ASCII高度: " << targetHeight << endl;
 
-
-    // Define ASCII characters for grayscale levels (dark to light)
-    const string asciiChars = "@%#*+=-:. "; // Common ramp (dense chars for dark areas)
+    const string asciiChars = "@%#*+=-:. ";
     const int numAsciiChars = static_cast<int>(asciiChars.length());
 
-    // Calculate scaling factors: how many original pixels map to one output character
     double xScale = static_cast<double>(width) / targetWidth;
     double yScale = static_cast<double>(height) / targetHeight;
 
-    // --- 存储ASCII结果 ---
-    // Use vector and string directly
     vector<string> asciiResultLines;
     asciiResultLines.reserve(targetHeight);
 
-    // Iterate through the rows and columns of the target ASCII representation
     for (int yOut = 0; yOut < targetHeight; ++yOut) {
         string currentLine = "";
         currentLine.reserve(targetWidth);
         for (int xOut = 0; xOut < targetWidth; ++xOut) {
-
-            // Use floor directly (from <cmath> included in std)
             int xImg = static_cast<int>(floor((xOut + 0.5) * xScale));
             int yImg = static_cast<int>(floor((yOut + 0.5) * yScale));
-
-            // Use max and min directly (from <algorithm> included in std)
             xImg = max(0, min(xImg, width - 1));
             yImg = max(0, min(yImg, height - 1));
-
             size_t pixelOffset = (static_cast<size_t>(yImg) * width + xImg) * channels;
-
             unsigned char r = imgData[pixelOffset];
             unsigned char g = (channels > 1) ? imgData[pixelOffset + 1] : r;
             unsigned char b = (channels > 2) ? imgData[pixelOffset + 2] : r;
-
             int gray = (static_cast<int>(r) + g + b) / 3;
-
-            // Use floor directly
             int asciiIndex = static_cast<int>(floor((gray / 255.0f) * (numAsciiChars - 1)));
-            // Use max and min directly
             asciiIndex = max(0, min(asciiIndex, numAsciiChars - 1));
-
             currentLine += asciiChars[static_cast<size_t>(asciiIndex)];
         }
          asciiResultLines.push_back(currentLine);
-         // cout << currentLine << endl; // Optional console preview
     }
 
-    // --- 将ASCII结果渲染为图片 ---
     cout << "\n正在渲染ASCII艺术为图片..." << endl;
 
-    // Use vector directly
     vector<unsigned char> fontBuffer = read_file(fontPath);
     if (fontBuffer.empty()) {
         return 1;
@@ -168,7 +176,6 @@ int main() {
         return 1;
     }
 
-    // Use round directly (from <cmath> included in std)
     float scale = stbtt_ScaleForPixelHeight(&fontInfo, fontSize);
     int ascent, descent, lineGap;
     stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
@@ -183,9 +190,8 @@ int main() {
 
     int outputImageWidth = targetWidth * charWidth;
     int outputImageHeight = targetHeight * lineHeight;
-    const int outputChannels = 3; // RGB
+    const int outputChannels = 3;
 
-    // Use vector directly
     vector<unsigned char> outputImageData(static_cast<size_t>(outputImageWidth) * outputImageHeight * outputChannels);
     for (size_t i = 0; i < outputImageData.size(); i += outputChannels) {
         outputImageData[i]     = bgColor[0];
@@ -194,7 +200,6 @@ int main() {
     }
 
     int currentY = ascent;
-    // Use string directly
     for (const string& line : asciiResultLines) {
         int currentX = 0;
         for (char c : line) {
@@ -202,15 +207,12 @@ int main() {
             unsigned char* bitmap = stbtt_GetCodepointBitmap(&fontInfo, scale, scale, c, &char_w, &char_h, &xoff, &yoff);
              if (bitmap) {
                  stbtt_GetCodepointHMetrics(&fontInfo, c, &advanceWidth, &leftSideBearing);
-                 // Use round directly
                  int drawX_base = currentX + static_cast<int>(round(leftSideBearing * scale)) + xoff;
                  int drawY_base = currentY + yoff;
-
                  for (int y = 0; y < char_h; ++y) {
                      for (int x = 0; x < char_w; ++x) {
                          int outX = drawX_base + x;
                          int outY = drawY_base + y;
-
                          if (outX >= 0 && outX < outputImageWidth && outY >= 0 && outY < outputImageHeight) {
                              unsigned char alpha = bitmap[y * char_w + x];
                              if (alpha > 128) {
@@ -223,17 +225,16 @@ int main() {
                      }
                  }
                  stbtt_FreeBitmap(bitmap, nullptr);
-                 // Use round directly
                  currentX += static_cast<int>(round(advanceWidth * scale));
             } else {
                  stbtt_GetCodepointHMetrics(&fontInfo, ' ', &advanceWidth, &leftSideBearing);
-                 // Use round directly
                  currentX += static_cast<int>(round(advanceWidth * scale));
             }
         }
         currentY += lineHeight;
     }
 
+    // --- 使用最终的路径保存文件 ---
     if (!stbi_write_png(finalOutputPathString.c_str(), outputImageWidth, outputImageHeight, outputChannels, outputImageData.data(), outputImageWidth * outputChannels)) {
         cerr << "错误: 无法将ASCII艺术保存为图片 '" << finalOutputPathString << "'" << endl;
         return 1;
