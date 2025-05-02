@@ -43,8 +43,17 @@ const set<string> SUPPORTED_EXTENSIONS = {
 };
 
 enum class ColorScheme {
+    // --- 原有方案 ---
     BLACK_ON_WHITE, WHITE_ON_BLACK, GREEN_ON_BLACK, PURPLE_ON_BLACK,
     COLOR_ON_WHITE, COLOR_ON_BLACK,
+    // --- 新增方案 ---
+    AMBER_ON_BLACK,   // 琥珀色/橙色前景，黑色背景
+    CYAN_ON_BLACK,    // 青色前景，黑色背景
+    YELLOW_ON_BLACK,  // 黄色前景，黑色背景
+    WHITE_ON_BLUE,    // 白色前景，蓝色背景
+    BLACK_ON_YELLOW,  // 黑色前景，黄色背景
+    BLACK_ON_CYAN,    // 黑色前景，青色背景
+    SEPIA             // 深褐色调 (使用固定颜色，模拟旧照片)
 };
 
 struct CharColorInfo {
@@ -69,9 +78,18 @@ struct Config {
     // 对于文件夹输入，这是在输入文件夹旁边创建的主输出目录的后缀
     string batchOutputSubDirSuffix = "_ascii_batch_output";
 
+    // --- 步骤 4 (可选): 选择要默认生成的颜色搭配 ---
     vector<ColorScheme> schemesToGenerate = {
-        ColorScheme::COLOR_ON_WHITE,
-        ColorScheme::GREEN_ON_BLACK,
+        ColorScheme::COLOR_ON_WHITE,    // 保留原色，浅灰 
+        ColorScheme::COLOR_ON_BLACK,    // 保留原色，黑底
+        ColorScheme::WHITE_ON_BLACK,    // 白字黑底 (经典)
+        ColorScheme::GREEN_ON_BLACK,    // 绿字黑底 (终端)
+        ColorScheme::AMBER_ON_BLACK,    // 琥珀色字黑底 (终端)
+        ColorScheme::CYAN_ON_BLACK,     // 青色字黑底
+        ColorScheme::YELLOW_ON_BLACK,   // 黄字黑底
+        ColorScheme::WHITE_ON_BLUE,     // 白字蓝底
+        ColorScheme::BLACK_ON_YELLOW,   // 黑字黄底
+        ColorScheme::SEPIA              // 深褐色调
     };
 };
 
@@ -120,12 +138,22 @@ vector<unsigned char> read_file(const string& filename) {
 // 根据颜色方案获取用于文件名的描述性后缀
 string getSchemeSuffix(ColorScheme scheme) {
     switch (scheme) {
-        case ColorScheme::BLACK_ON_WHITE:   return "_BlackOnWhite";
+        // --- 原有方案 ---
+        case ColorScheme::BLACK_ON_WHITE:   return "_BlackOnWhite"; // 背景已改为浅灰
         case ColorScheme::WHITE_ON_BLACK:   return "_WhiteOnBlack";
         case ColorScheme::GREEN_ON_BLACK:   return "_GreenOnBlack";
         case ColorScheme::PURPLE_ON_BLACK:  return "_PurpleOnBlack";
-        case ColorScheme::COLOR_ON_WHITE:   return "_ColorOnWhite";
+        case ColorScheme::COLOR_ON_WHITE:   return "_ColorOnWhite"; // 背景已改为浅灰
         case ColorScheme::COLOR_ON_BLACK:   return "_ColorOnBlack";
+        // --- 新增方案 ---
+        case ColorScheme::AMBER_ON_BLACK:   return "_AmberOnBlack";
+        case ColorScheme::CYAN_ON_BLACK:    return "_CyanOnBlack";
+        case ColorScheme::YELLOW_ON_BLACK:  return "_YellowOnBlack";
+        case ColorScheme::WHITE_ON_BLUE:    return "_WhiteOnBlue";
+        case ColorScheme::BLACK_ON_YELLOW:  return "_BlackOnYellow";
+        case ColorScheme::BLACK_ON_CYAN:    return "_BlackOnCyan";
+        case ColorScheme::SEPIA:            return "_Sepia";
+
         default:                            return "_UnknownScheme";
     }
 }
@@ -445,6 +473,7 @@ void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float fontSize, i
 // 7. 设置配色方案颜色 (不变)
 void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char fgColor[3]) {
     switch (scheme) {
+        // --- 原有方案 (背景色统一使用浅灰或黑色) ---
         case ColorScheme::WHITE_ON_BLACK:
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
             fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White)
@@ -457,16 +486,50 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
             fgColor[0] = 0x80; fgColor[1] = 0x00; fgColor[2] = 0x80; // #800080 (Purple)
             break;
-        case ColorScheme::COLOR_ON_WHITE:
+        case ColorScheme::COLOR_ON_WHITE: // 背景已改为浅灰
             bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; // #C8C8C8 (Light Gray)
-            fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black) - 未使用
+            fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // 未使用
             break;
         case ColorScheme::COLOR_ON_BLACK:
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
-            fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White) - 未使用
+            fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // 未使用
             break;
 
-        case ColorScheme::BLACK_ON_WHITE:
+        // --- 新增方案 ---
+        case ColorScheme::AMBER_ON_BLACK:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
+            fgColor[0] = 0xFF; fgColor[1] = 0xBF; fgColor[2] = 0x00; // #FFBF00 (Amber)
+            break;
+        case ColorScheme::CYAN_ON_BLACK:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
+            fgColor[0] = 0x00; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #00FFFF (Cyan)
+            break;
+        case ColorScheme::YELLOW_ON_BLACK:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
+            fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0x00; // #FFFF00 (Yellow)
+            break;
+        case ColorScheme::WHITE_ON_BLUE:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0xAA; // #0000AA (Darker Blue)
+            fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White)
+            break;
+         case ColorScheme::BLACK_ON_YELLOW:
+            bgColor[0] = 0xFF; bgColor[1] = 0xFF; bgColor[2] = 0xAA; // #FFFFAA (Light Yellow)
+            fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black)
+            break;
+         case ColorScheme::BLACK_ON_CYAN:
+            bgColor[0] = 0xAA; bgColor[1] = 0xFF; bgColor[2] = 0xFF; // #AAFFFF (Light Cyan)
+            fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black)
+            break;
+         case ColorScheme::SEPIA:
+            // 背景色: 类似卡其色
+            bgColor[0] = 0xF0; bgColor[1] = 0xE6; bgColor[2] = 0x8C; // #F0E68C (Khaki-ish)
+            // 前景色: 深棕色
+            fgColor[0] = 0x70; fgColor[1] = 0x42; fgColor[2] = 0x14; // #704214 (SaddleBrown-ish)
+            break;
+
+
+        // --- 默认/旧的 BLACK_ON_WHITE (背景已改为浅灰) ---
+        case ColorScheme::BLACK_ON_WHITE: // 使用浅灰背景
         default:
             bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; // #C8C8C8 (Light Gray)
             fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black)
