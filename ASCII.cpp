@@ -26,6 +26,15 @@ using namespace std;
 // --- Bring specific nested namespace members into scope ---
 using std::filesystem::path; // Now we can use 'path' directly
 
+// --- 新增：定义颜色方案枚举 ---
+enum class ColorScheme {
+    BLACK_ON_WHITE, // 黑字白底 (原默认)
+    WHITE_ON_BLACK, // 白字黑底
+    GREEN_ON_BLACK, // 绿字黑底
+    PURPLE_ON_BLACK // 紫字黑底
+    // 可以根据需要添加更多方案
+};
+
 // Helper function to read a file into a vector of unsigned char
 vector<unsigned char> read_file(const string& filename) {
     ifstream file(filename, ios::binary | ios::ate);
@@ -51,63 +60,75 @@ int main() {
     const string fontPath = "C:\\Computer\\Code666\\github_cpp\\pics\\Consolas.ttf";
     const float fontSize = 15.0f;
     const string baseOutputFilename = "output_ascii_art.png";
-    // --- 定义要创建的子目录名称 ---
-    // 注意：使用非 ASCII 字符如 "莉" 可能导致跨平台或编码问题，推荐使用 ASCII 名称
     const string outputSubDirName = "ascii_output";
-    // const string outputSubDirName = "莉"; // 如果你坚持使用，请注意风险
-    // --- 子目录名称定义结束 ---
-    const unsigned char bgColor[3] = {255, 255, 255};
-    const unsigned char fgColor[3] = {0, 0, 0};
+
+    // --- 新增：在此处选择颜色方案 ---
+    // 通过修改下面这行来选择颜色搭配
+    const ColorScheme currentScheme = ColorScheme::PURPLE_ON_BLACK;
+    // 可选项:
+    // ColorScheme::BLACK_ON_WHITE
+    // ColorScheme::WHITE_ON_BLACK
+    // ColorScheme::GREEN_ON_BLACK
+    // ColorScheme::PURPLE_ON_BLACK
+
+    // --- 修改：声明颜色变量，但不立即初始化 ---
+    unsigned char bgColor[3];
+    unsigned char fgColor[3];
+
+    // --- 新增：根据选择的方案设置颜色值 ---
+    switch (currentScheme) {
+        case ColorScheme::WHITE_ON_BLACK:
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
+            fgColor[0] = 255; fgColor[1] = 255; fgColor[2] = 255; // White foreground
+            break;
+        case ColorScheme::GREEN_ON_BLACK:
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
+            fgColor[0] = 0;   fgColor[1] = 255; fgColor[2] = 0;   // Green foreground
+            break;
+        case ColorScheme::PURPLE_ON_BLACK:
+            bgColor[0] = 0;   bgColor[1] = 0;   bgColor[2] = 0;   // Black background
+            fgColor[0] = 128; fgColor[1] = 0;   fgColor[2] = 128; // Purple foreground (暗紫色)
+            // 或者亮紫色: fgColor[0] = 255; fgColor[1] = 0; fgColor[2] = 255;
+            break;
+        case ColorScheme::BLACK_ON_WHITE:
+        default: // 将默认值设为黑字白底
+            bgColor[0] = 255; bgColor[1] = 255; bgColor[2] = 255; // White background
+            fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;   // Black foreground
+            break;
+    }
+
 
     cout << "请输入图片文件路径: ";
     getline(cin, imagePath);
 
-    // --- 修改：构造输出路径并创建子目录 ---
+    // --- 构造输出路径并创建子目录 ---
     path inputPathObj(imagePath);
-    path parentDir = inputPathObj.parent_path(); // 获取父目录
-
-    // 构造子目录的完整路径
+    path parentDir = inputPathObj.parent_path();
     path outputSubDirPath = parentDir / outputSubDirName;
 
-    // 尝试创建子目录
     try {
-        // create_directory 如果目录已存在，则返回 false 且不抛出异常
-        // 如果创建失败（例如权限问题），则抛出 filesystem_error
         if (filesystem::create_directory(outputSubDirPath)) {
             cout << "已创建输出子目录: " << outputSubDirPath.string() << endl;
         } else {
-             // 目录已存在或创建失败但未抛出异常（理论上不应发生，除非并发）
              if (!filesystem::exists(outputSubDirPath)) {
-                 // 如果目录不存在且创建失败，则报告错误
                  cerr << "错误: 无法创建输出子目录，但目录似乎也不存在: " << outputSubDirPath.string() << endl;
-                 return 1; // 无法继续
+                 return 1;
              }
-             // 如果目录已存在，则不需额外提示，继续执行
         }
     } catch (const filesystem::filesystem_error& e) {
         cerr << "错误: 创建输出子目录时发生异常: " << outputSubDirPath.string() << endl;
         cerr << "错误详情: " << e.what() << endl;
-        // 检查是否是因为目录已存在（虽然 create_directory 不应因此抛出）
-        if (!filesystem::is_directory(outputSubDirPath)) {
-             return 1; // 如果不是目录且创建失败，则无法继续
-        }
-         // 如果是因为其他原因（如权限），但目录确实是存在的，或许可以尝试继续？
-         // 这里选择退出更安全
-         // return 1;
-         // 或者仅打印警告并尝试继续（如果确定目录已存在）
+         if (!filesystem::is_directory(outputSubDirPath)) {
+              return 1;
+         }
          cerr << "警告: 尝试继续，假设目录已存在..." << endl;
-
-
-    } catch (const std::exception& e) { // 捕获其他可能的标准异常
+    } catch (const std::exception& e) {
         cerr << "错误: 创建目录时发生未知异常: " << e.what() << endl;
         return 1;
     }
 
-
-    // 组合最终的文件路径（在子目录内）
     path finalOutputPathObj = outputSubDirPath / baseOutputFilename;
     string finalOutputPathString = finalOutputPathObj.string();
-
     cout << "输出文件将保存到: " << finalOutputPathString << endl;
     // --- 路径构造和目录创建结束 ---
 
@@ -131,7 +152,6 @@ int main() {
 
     int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth) / (width * charAspectRatioCorrection)));
     targetHeight = max(1, targetHeight);
-
     cout << "计算出的ASCII高度: " << targetHeight << endl;
 
     const string asciiChars = "@%#*+=-:. ";
@@ -193,6 +213,7 @@ int main() {
     const int outputChannels = 3;
 
     vector<unsigned char> outputImageData(static_cast<size_t>(outputImageWidth) * outputImageHeight * outputChannels);
+    // --- 背景填充现在使用 switch 设置好的 bgColor ---
     for (size_t i = 0; i < outputImageData.size(); i += outputChannels) {
         outputImageData[i]     = bgColor[0];
         outputImageData[i + 1] = bgColor[1];
@@ -217,6 +238,7 @@ int main() {
                              unsigned char alpha = bitmap[y * char_w + x];
                              if (alpha > 128) {
                                  size_t pixelIndex = (static_cast<size_t>(outY) * outputImageWidth + outX) * outputChannels;
+                                 // --- 字符绘制现在使用 switch 设置好的 fgColor ---
                                  outputImageData[pixelIndex]     = fgColor[0];
                                  outputImageData[pixelIndex + 1] = fgColor[1];
                                  outputImageData[pixelIndex + 2] = fgColor[2];
@@ -234,7 +256,6 @@ int main() {
         currentY += lineHeight;
     }
 
-    // --- 使用最终的路径保存文件 ---
     if (!stbi_write_png(finalOutputPathString.c_str(), outputImageWidth, outputImageHeight, outputChannels, outputImageData.data(), outputImageWidth * outputChannels)) {
         cerr << "错误: 无法将ASCII艺术保存为图片 '" << finalOutputPathString << "'" << endl;
         return 1;
