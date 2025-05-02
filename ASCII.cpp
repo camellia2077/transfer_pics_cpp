@@ -69,7 +69,11 @@ struct Config {
     // 对于文件夹输入，这是在输入文件夹旁边创建的主输出目录的后缀
     string batchOutputSubDirSuffix = "_ascii_batch_output";
 
-    vector<ColorScheme> schemesToGenerate = { ColorScheme::COLOR_ON_WHITE };
+    vector<ColorScheme> schemesToGenerate = {
+        ColorScheme::COLOR_ON_WHITE,
+        //ColorScheme::WHITE_ON_BLACK,
+        ColorScheme::GREEN_ON_BLACK,
+    };
 };
 
 
@@ -455,7 +459,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             fgColor[0] = 128; fgColor[1] = 0;   fgColor[2] = 128;
             break;
         case ColorScheme::COLOR_ON_WHITE:
-            bgColor[0] = 255; bgColor[1] = 255; bgColor[2] = 255;
+            bgColor[0] = 200; bgColor[1] = 200; bgColor[2] = 200;
             // fgColor 对于彩色方案未使用，但设置了默认值
             fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;
             break;
@@ -466,7 +470,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             break;
         case ColorScheme::BLACK_ON_WHITE:
         default:
-            bgColor[0] = 255; bgColor[1] = 255; bgColor[2] = 255;
+            bgColor[0] = 200; bgColor[1] = 200; bgColor[2] = 200;
             fgColor[0] = 0;   fgColor[1] = 0;   fgColor[2] = 0;
             break;
     }
@@ -838,13 +842,19 @@ int main(int argc, char* argv[]) {
     }
 
     auto overall_end_time = high_resolution_clock::now();
-    auto overall_duration = duration_cast<seconds>(overall_end_time - overall_start_time);
+    // 计算原始时间差 (高精度)
+    auto time_diff = overall_end_time - overall_start_time;
+
+    // 将高精度时间差转换为 double 类型的秒数
+    duration<double> overall_duration_seconds = time_diff; // chrono 可以隐式转换，或显式写 duration_cast<duration<double>>(time_diff)
 
     cout << "\n==================================================" << endl;
     cout << "Overall Processing Summary:" << endl;
     cout << "  Successfully processed: " << processedCount << " image(s)" << endl;
     cout << "  Failed/Skipped:       " << failedCount << " image(s)" << endl;
-    cout << "  Total time elapsed:   " << overall_duration.count() << " seconds" << endl;
+    // 使用 fixed 和 setprecision 控制输出格式，显示小数点后 3 位
+    cout << "  Total time elapsed:   " << fixed << setprecision(3)
+         << overall_duration_seconds.count() << " seconds" << endl;
     cout << "==================================================" << endl;
 
     cin.get();
