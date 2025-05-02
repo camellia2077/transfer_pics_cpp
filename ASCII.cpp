@@ -3,12 +3,14 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include <fstream>      // 用于读取字体文件
+#include <fstream>      // 用于读取字体文件和配置文件
 #include <memory>       // 用于 unique_ptr
 #include <filesystem>   // 用于路径操作和目录创建 (需要 C++17)
 #include <system_error> // 用于文件系统错误处理
 #include <chrono>       // 用于高精度计时
 #include <iomanip>      // 用于格式化输出 (setprecision)
+#include <sstream>      // 用于字符串流转换
+#include <cctype>       // 用于 tolower (可选，用于不区分大小写的键)
 
 // 定义此宏，以便 stb_image.h 包含实现
 // 确保此定义仅出现在一个 .cpp 文件中
@@ -46,6 +48,17 @@ struct CharColorInfo {
 
 // --- 辅助函数 ---
 
+// 去除字符串首尾空格的辅助函数
+string trim(const string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r\f\v");
+    if (string::npos == first) {
+        return str;
+    }
+    size_t last = str.find_last_not_of(" \t\n\r\f\v");
+    return str.substr(first, (last - first + 1));
+}
+
+
 // 将文件读入字节向量
 vector<unsigned char> read_file(const string& filename) {
     ifstream file(filename, ios::binary | ios::ate);
@@ -58,8 +71,8 @@ vector<unsigned char> read_file(const string& filename) {
     file.seekg(0, ios::beg);
     vector<unsigned char> buffer(static_cast<size_t>(size));
     if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
-         // 输出英文错误
-         cerr << "Error: Cannot read file '" << filename << "'" << endl;
+        // 输出英文错误
+        cerr << "Error: Cannot read file '" << filename << "'" << endl;
         return {};
     }
     return buffer;
@@ -77,6 +90,99 @@ string getSchemeSuffix(ColorScheme scheme) {
         default:                            return "_UnknownScheme";
     }
 }
+
+
+// --- 新增：配置加载函数 ---
+bool loadConfiguration(const path& configPath,
+                       int& targetWidth,
+                       double& charAspectRatioCorrection,
+                       string& fontFilename,
+                       float& fontSize)
+{
+    ifstream configFile(configPath);
+    if (!configFile) {
+        cout << "Info: Configuration file '" << configPath.string() << "' not found. Using default settings." << endl;
+        return true; // 文件不存在是正常的，使用默认值
+    }
+
+    cout << "Info: Loading configuration from '" << configPath.string() << "'..." << endl;
+    string line;
+    int lineNumber = 0;
+    bool loadedSuccessfully = true; // 跟踪是否有解析错误
+
+    while (getline(configFile, line)) {
+        lineNumber++;
+        line = trim(line);
+
+        // 跳过空行或注释行
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+
+        size_t separatorPos = line.find('=');
+        if (separatorPos == string::npos) {
+            cerr << "Warning: Invalid format in config file at line " << lineNumber << ": Missing '=' separator. Line: \"" << line << "\"" << endl;
+            loadedSuccessfully = false;
+            continue;
+        }
+
+        string key = trim(line.substr(0, separatorPos));
+        string value = trim(line.substr(separatorPos + 1));
+
+        // 可选：将键转换为小写以便不区分大小写比较
+        // transform(key.begin(), key.end(), key.begin(), ::tolower);
+
+        if (key == "targetWidth") {
+            try {
+                targetWidth = stoi(value);
+                 cout << "  -> Loaded targetWidth = " << targetWidth << endl;
+            } catch (const std::invalid_argument& e) {
+                cerr << "Warning: Invalid value for 'targetWidth' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                loadedSuccessfully = false;
+            } catch (const std::out_of_range& e) {
+                 cerr << "Warning: Value out of range for 'targetWidth' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                loadedSuccessfully = false;
+            }
+        } else if (key == "charAspectRatioCorrection") {
+             try {
+                charAspectRatioCorrection = stod(value);
+                 cout << "  -> Loaded charAspectRatioCorrection = " << charAspectRatioCorrection << endl;
+            } catch (const std::invalid_argument& e) {
+                cerr << "Warning: Invalid value for 'charAspectRatioCorrection' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                 loadedSuccessfully = false;
+            } catch (const std::out_of_range& e) {
+                 cerr << "Warning: Value out of range for 'charAspectRatioCorrection' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                 loadedSuccessfully = false;
+            }
+        } else if (key == "fontFilename") {
+            if (!value.empty()) {
+                fontFilename = value;
+                cout << "  -> Loaded fontFilename = " << fontFilename << endl;
+            } else {
+                 cerr << "Warning: Empty value for 'fontFilename' in config file at line " << lineNumber << ". Using default." << endl;
+                 loadedSuccessfully = false;
+            }
+        } else if (key == "fontSize") {
+             try {
+                fontSize = stof(value);
+                 cout << "  -> Loaded fontSize = " << fontSize << endl;
+            } catch (const std::invalid_argument& e) {
+                cerr << "Warning: Invalid value for 'fontSize' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                 loadedSuccessfully = false;
+            } catch (const std::out_of_range& e) {
+                 cerr << "Warning: Value out of range for 'fontSize' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+                 loadedSuccessfully = false;
+            }
+        } else {
+            // 可以选择性地警告未知键
+             cout << "Info: Unknown key '" << key << "' in config file at line " << lineNumber << ". Ignoring." << endl;
+        }
+    }
+
+    configFile.close();
+    return loadedSuccessfully; // 返回true表示文件已处理，即使有警告
+}
+
 
 // --- 核心功能模块 ---
 
@@ -194,6 +300,7 @@ vector<vector<CharColorInfo>> generateAsciiData(const unsigned char* imgData, in
     return asciiResultData;
 }
 
+
 // 5. 加载字体信息
 // fontBuffer 通过引用传递以保持数据有效。
 // *** 已修改：添加了用于字体位置和名称的 cout 输出 ***
@@ -215,10 +322,10 @@ bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsig
     int length = 0;
     // 尝试使用 Microsoft Unicode BMP 编码获取“完整字体名称”（名称 ID 4）
     const char* namePtr = stbtt_GetFontNameString(&fontInfo, &length,
-                                                 STBTT_PLATFORM_ID_MICROSOFT,
-                                                 STBTT_MS_EID_UNICODE_BMP,
-                                                 STBTT_MS_LANG_ENGLISH, // 尝试英语语言 ID
-                                                 4); // 名称 ID 4：完整字体名称
+                                                  STBTT_PLATFORM_ID_MICROSOFT,
+                                                  STBTT_MS_EID_UNICODE_BMP,
+                                                  STBTT_MS_LANG_ENGLISH, // 尝试英语语言 ID
+                                                  4); // 名称 ID 4：完整字体名称
 
     if (namePtr && length > 0) {
         // 这可能是 UTF-16BE，常用于 MS Unicode BMP。
@@ -229,30 +336,30 @@ bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsig
         tempName.reserve(length / 2 + 1); // 粗略估计
         for (int i = 0; i < length; i += 2) { // 步长为 2 字节
             if (namePtr[i] == 0 && namePtr[i+1] != 0) { // 对 UTF-16BE 中的 ASCII 范围进行基本检查
-                 tempName += namePtr[i+1];
+                tempName += namePtr[i+1];
             } else {
                 // 处理其他字符或指示非 ASCII？
                 // 为简单起见，我们只对非基本字符使用 '?'
                 // 或者跳过它们。这里我们添加 '?'。需要进行适当的转换才能完全支持。
                  if (namePtr[i] != 0 || namePtr[i+1] != 0) // 避免添加空字符
-                    tempName += '?';
+                     tempName += '?';
             }
         }
          if (!tempName.empty()) {
-             fontName = tempName;
+              fontName = tempName;
          } else {
-             // 如果简单转换没有产生任何结果，则回退，也许是 Mac Roman？
-             namePtr = stbtt_GetFontNameString(&fontInfo, &length, STBTT_PLATFORM_ID_MAC, STBTT_MAC_EID_ROMAN, STBTT_MAC_LANG_ENGLISH, 1); // 名称 ID 1：字体族名称
-             if (namePtr && length > 0) {
-                 fontName = string(namePtr, length);
-             }
+              // 如果简单转换没有产生任何结果，则回退，也许是 Mac Roman？
+              namePtr = stbtt_GetFontNameString(&fontInfo, &length, STBTT_PLATFORM_ID_MAC, STBTT_MAC_EID_ROMAN, STBTT_MAC_LANG_ENGLISH, 1); // 名称 ID 1：字体族名称
+              if (namePtr && length > 0) {
+                  fontName = string(namePtr, length);
+              }
          }
 
     } else {
          // 回退：尝试 Mac 字体族名称（名称 ID 1）
          namePtr = stbtt_GetFontNameString(&fontInfo, &length, STBTT_PLATFORM_ID_MAC, STBTT_MAC_EID_ROMAN, STBTT_MAC_LANG_ENGLISH, 1); // 名称 ID 1：字体族名称
          if (namePtr && length > 0) {
-             fontName = string(namePtr, length);
+              fontName = string(namePtr, length);
          }
          // 如果需要，可以添加更多回退（其他 ID、平台、编码）
     }
@@ -301,6 +408,7 @@ void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float fontSize, i
     // 输出英文消息
     cout << "Output image dimensions calculated: " << outputImageWidth << "x" << outputImageHeight << endl;
 }
+
 
 // 7. 设置配色方案颜色
 void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char fgColor[3]) {
@@ -371,12 +479,12 @@ void renderAsciiArt(vector<unsigned char>& outputImageData,
 
 
             if (bitmap) {
-                 // 正确的绘制位置计算：
-                 // 基准 Y + 字体上升高度 + 字形相对于基线的垂直偏移 Y
-                 // 基准 X + 字形相对于原点的水平偏移 X（xoff 中通常隐式包含 LSB）
-                 // int drawX_base = currentX + xoff; // 更简单，可能取决于字体如何包含 LSB
-                 int drawX_base = currentX + static_cast<int>(round(leftSideBearing * scale)) + xoff; // 更明确
-                 int drawY_base = currentY + yoff; // currentY 已经是基线
+                // 正确的绘制位置计算：
+                // 基准 Y + 字体上升高度 + 字形相对于基线的垂直偏移 Y
+                // 基准 X + 字形相对于原点的水平偏移 X（xoff 中通常隐式包含 LSB）
+                // int drawX_base = currentX + xoff; // 更简单，可能取决于字体如何包含 LSB
+                int drawX_base = currentX + static_cast<int>(round(leftSideBearing * scale)) + xoff; // 更明确
+                int drawY_base = currentY + yoff; // currentY 已经是基线
 
                 for (int y = 0; y < char_h; ++y) {
                     for (int x = 0; x < char_w; ++x) {
@@ -449,16 +557,18 @@ bool saveImage(const path& outputPath, int width, int height, int channels, cons
 
 
 // --- 主应用程序逻辑 ---
-// *** 已修改：添加了 argc, argv 参数和字体路径逻辑 ***
 int main(int argc, char* argv[]) { // 添加了 argc, argv
-    // --- 配置 ---
-    const int targetWidth = 512; //字符画宽度
-    const double charAspectRatioCorrection = 2.0;//字体长款修正
-    const string fontFilename = "Consolas.ttf"; //字体文件名
-    const float fontSize = 15.0f;//字体大小
+    // --- 默认配置 ---
+    int targetWidth_cfg = 1024; // 字符画宽度 (默认)
+    double charAspectRatioCorrection_cfg = 2.0; // 字体长宽修正 (默认)
+    string fontFilename_cfg = "Consolas.ttf"; // 字体文件名 (默认)
+    float fontSize_cfg = 15.0f; // 字体大小 (默认)
+
+    // --- 其他常量 ---
     const string baseOutputFilename = "output_ascii_art";
     const string outputExtension = ".png";
     const string outputSubDirName = "ascii_output";
+    const string configFilename = "config.txt"; // 配置文件名
 
     const vector<ColorScheme> schemesToGenerate = {
         //ColorScheme::BLACK_ON_WHITE,
@@ -469,7 +579,7 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
     };
     // --- 配置结束 ---
 
-    // --- 确定可执行文件路径和字体路径 ---
+    // --- 确定可执行文件路径和配置文件/字体路径 ---
     path exePath;
     if (argc > 0 && argv[0] != nullptr) {
          try {
@@ -480,26 +590,40 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
              // exePath = filesystem::canonical(filesystem::path(argv[0])); // 更健壮但可能失败
              exePath = filesystem::path(argv[0]); // 更简单的方法
          } catch (const filesystem::filesystem_error& e) {
-              // 输出英文警告
-              cerr << "Warning: Failed to resolve executable path '" << argv[0] << "': " << e.what() << endl;
-              cerr << "Attempting to use current working directory as fallback." << endl;
-              exePath = filesystem::current_path() / (argv[0] ? filesystem::path(argv[0]).filename() : ""); // 回退尝试
+             // 输出英文警告
+             cerr << "Warning: Failed to resolve executable path '" << argv[0] << "': " << e.what() << endl;
+             cerr << "Attempting to use current working directory as fallback." << endl;
+             exePath = filesystem::current_path() / (argv[0] ? filesystem::path(argv[0]).filename() : ""); // 回退尝试
          }
     } else {
          // 输出英文警告
          cerr << "Warning: Could not get executable path (argc=" << argc << "). Attempting to use current working directory." << endl;
          // 如果 argv[0] 不可用，则回退到当前工作目录
          try {
-              exePath = filesystem::current_path() / "unknown_executable"; // 占位符
+             exePath = filesystem::current_path() / "unknown_executable"; // 占位符
          } catch (const filesystem::filesystem_error& e) {
-              // 输出英文错误
-              cerr << "Error: Failed to get current working directory: " << e.what() << endl;
-              return 1; // 没有基本路径无法继续
+             // 输出英文错误
+             cerr << "Error: Failed to get current working directory: " << e.what() << endl;
+             return 1; // 没有基本路径无法继续
          }
     }
 
     path exeDir = exePath.parent_path();
-    path fontPathObj = exeDir / fontFilename; // 构造相对于可执行文件的路径
+    path configPathObj = exeDir / configFilename; // 配置文件路径
+
+    // --- 加载配置 ---
+    loadConfiguration(configPathObj, targetWidth_cfg, charAspectRatioCorrection_cfg, fontFilename_cfg, fontSize_cfg);
+
+    // --- 现在使用配置值 ---
+    // (上面的加载函数已经修改了 _cfg 变量的值，如果配置文件存在且有效的话)
+    cout << "\n--- Using Configuration ---" << endl;
+    cout << "Target Width: " << targetWidth_cfg << endl;
+    cout << "Aspect Ratio Correction: " << charAspectRatioCorrection_cfg << endl;
+    cout << "Font Filename: " << fontFilename_cfg << endl;
+    cout << "Font Size: " << fontSize_cfg << endl;
+    cout << "--------------------------" << endl;
+
+    path fontPathObj = exeDir / fontFilename_cfg; // 使用配置中的字体文件名构建路径
     string finalFontPath = fontPathObj.string(); // 转换为字符串以供函数使用
 
 
@@ -528,8 +652,8 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
     auto imgDataPtr = loadImage(imagePath.string(), width, height); // unique_ptr 管理内存
     auto load_end = high_resolution_clock::now();
     auto load_duration = duration_cast<milliseconds>(load_end - load_start);
-     // 输出英文消息
-     cout << "-> Image loading time: " << fixed << setprecision(3) << load_duration.count() / 1000.0 << " seconds" << endl;
+      // 输出英文消息
+      cout << "-> Image loading time: " << fixed << setprecision(3) << load_duration.count() / 1000.0 << " seconds" << endl;
     if (!imgDataPtr) return 1;
 
 
@@ -537,14 +661,15 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
     auto total_processing_start = high_resolution_clock::now();
 
     // --- 步骤 4：生成 ASCII 数据 ---
+    // 使用配置的 targetWidth 和 charAspectRatioCorrection
     auto ascii_conv_start = high_resolution_clock::now(); // <-- ASCII 开始时间
-    int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth) / (width * charAspectRatioCorrection)));
+    int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth_cfg) / (width * charAspectRatioCorrection_cfg)));
     targetHeight = max(1, targetHeight); // 确保高度至少为 1
     // 输出英文消息
     cout << "Calculated ASCII height: " << targetHeight << endl;
 
     vector<vector<CharColorInfo>> asciiResultData = generateAsciiData(
-        imgDataPtr.get(), width, height, targetWidth, targetHeight);
+        imgDataPtr.get(), width, height, targetWidth_cfg, targetHeight); // 使用 targetWidth_cfg
     auto ascii_conv_end = high_resolution_clock::now(); // <-- ASCII 结束时间
     if (asciiResultData.empty()) {
          // 输出英文错误
@@ -560,17 +685,18 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
     // 注意：如果需要，字体加载时间会单独测量，但此处是为了设置
     stbtt_fontinfo fontInfo;
     vector<unsigned char> fontBuffer; // 保持缓冲区对 fontInfo 有效
-    if (!loadFontInfo(finalFontPath, fontInfo, fontBuffer)) { // 使用计算出的 finalFontPath
+    if (!loadFontInfo(finalFontPath, fontInfo, fontBuffer)) { // 使用 finalFontPath (来自配置)
         // 输出英文错误
-        cerr << "Please ensure the font file '" << fontFilename << "' is in the same directory as the executable." << endl;
+        cerr << "Please ensure the font file '" << fontFilename_cfg << "' (specified in config or default) is in the same directory as the executable." << endl;
         return 1;
     }
 
 
     // --- 步骤 6：计算尺寸 ---
+    // 使用配置的 fontSize, targetWidth, targetHeight
     int charWidth, lineHeight, outputImageWidth, outputImageHeight, ascent, descent, lineGap;
     float scale;
-    calculateOutputDimensions(fontInfo, fontSize, targetWidth, targetHeight,
+    calculateOutputDimensions(fontInfo, fontSize_cfg, targetWidth_cfg, targetHeight, // 使用 fontSize_cfg, targetWidth_cfg
                               charWidth, lineHeight, outputImageWidth, outputImageHeight,
                               scale, ascent, descent, lineGap);
      // 添加对计算出的零尺寸的检查
@@ -617,8 +743,8 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
               if (required_size > outputImageData.max_size()) {
                    // 输出英文错误
                    throw std::runtime_error("Required image buffer size exceeds vector's maximum capacity.");
-              }
-             outputImageData.resize(required_size);
+               }
+              outputImageData.resize(required_size);
          } catch (const std::bad_alloc& e) {
              // 输出英文错误
              cerr << "Error: Failed to allocate output image buffer (Size: " << outputImageWidth << "x" << outputImageHeight << "). Out of memory?" << endl;
@@ -639,7 +765,7 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
         auto render_end = high_resolution_clock::now(); // <-- 渲染结束时间
         auto render_duration = duration_cast<milliseconds>(render_end - render_start);
 
-        cout << "    -> Rendering time: " << fixed << setprecision(3) << render_duration.count() / 1000.0 << " seconds" << endl;
+        cout << "     -> Rendering time: " << fixed << setprecision(3) << render_duration.count() / 1000.0 << " seconds" << endl;
 
 
         // d. 保存图像（PNG 创建第 2 部分）
@@ -649,10 +775,10 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
             cerr << "  Error: Failed to save scheme " << schemeSuffix.substr(1) << "." << endl;
             // 决定是继续还是停止：continue;
         } else {
-             auto save_end = high_resolution_clock::now();
-             auto save_duration = duration_cast<milliseconds>(save_end - save_start);
+            auto save_end = high_resolution_clock::now();
+            auto save_duration = duration_cast<milliseconds>(save_end - save_start);
 
-             cout << "    -> Saving time: " << fixed << setprecision(3) << save_duration.count() / 1000.0 << " seconds" << endl;
+            cout << "     -> Saving time: " << fixed << setprecision(3) << save_duration.count() / 1000.0 << " seconds" << endl;
 
             cout << "  Scheme " << schemeSuffix.substr(1) << " saved successfully." << endl;
         }
