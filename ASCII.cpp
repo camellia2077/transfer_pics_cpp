@@ -10,7 +10,8 @@
 #include <chrono>       // 用于高精度计时
 #include <iomanip>      // 用于格式化输出 (setprecision)
 #include <sstream>      // 用于字符串流转换
-#include <cctype>       // 用于 tolower (可选，用于不区分大小写的键)
+#include <cctype>       // 用于 tolower
+#include <set>          // 用于存储支持的扩展名
 
 // 定义此宏，以便 stb_image.h 包含实现
 // 确保此定义仅出现在一个 .cpp 文件中
@@ -36,6 +37,11 @@ const string ASCII_CHARS = "@%#*+=-:. ";
 const int NUM_ASCII_CHARS = static_cast<int>(ASCII_CHARS.length());
 const int OUTPUT_CHANNELS = 3; // 输出 PNG 为 RGB 格式
 
+// 支持的图片文件扩展名 (小写)
+const set<string> SUPPORTED_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif" // 注意: GIF 可能只加载第一帧
+};
+
 enum class ColorScheme {
     BLACK_ON_WHITE, WHITE_ON_BLACK, GREEN_ON_BLACK, PURPLE_ON_BLACK,
     COLOR_ON_WHITE, COLOR_ON_BLACK
@@ -45,6 +51,27 @@ struct CharColorInfo {
     char character;
     unsigned char color[3]; // 来自原始图像的 R, G, B 值
 };
+
+// --- 新增：配置结构体 ---
+struct Config {
+    int targetWidth = 1024;
+    double charAspectRatioCorrection = 2.0;
+    string fontFilename = "Consolas.ttf";
+    float fontSize = 15.0f;
+    string finalFontPath = ""; // 将由 main 计算
+
+    // --- 其他处理相关的常量 ---
+    string baseOutputFilename = "output_ascii_art";
+    string outputExtension = ".png";
+    // 对于单个文件输入，这是相对于文件父目录的子目录名
+    // 对于文件夹输入，这是在主输出目录下为每个图片创建的子目录名的后缀
+    string imageOutputSubDirSuffix = "_ascii_output";
+    // 对于文件夹输入，这是在输入文件夹旁边创建的主输出目录的后缀
+    string batchOutputSubDirSuffix = "_ascii_batch_output";
+
+    vector<ColorScheme> schemesToGenerate = { ColorScheme::COLOR_ON_WHITE };
+};
+
 
 // --- 辅助函数 ---
 
@@ -58,6 +85,15 @@ string trim(const string& str) {
     return str.substr(first, (last - first + 1));
 }
 
+// 检查文件扩展名是否为支持的图像格式 (不区分大小写)
+bool isImageFile(const path& p) {
+    if (!p.has_extension()) {
+        return false;
+    }
+    string ext = p.extension().string();
+    transform(ext.begin(), ext.end(), ext.begin(), ::tolower); // 转为小写
+    return SUPPORTED_EXTENSIONS.count(ext);
+}
 
 // 将文件读入字节向量
 vector<unsigned char> read_file(const string& filename) {
@@ -92,12 +128,8 @@ string getSchemeSuffix(ColorScheme scheme) {
 }
 
 
-// --- 新增：配置加载函数 ---
-bool loadConfiguration(const path& configPath,
-                       int& targetWidth,
-                       double& charAspectRatioCorrection,
-                       string& fontFilename,
-                       float& fontSize)
+// --- 配置加载函数 (修改为更新 Config 对象) ---
+bool loadConfiguration(const path& configPath, Config& config) // 接受 Config 引用
 {
     ifstream configFile(configPath);
     if (!configFile) {
@@ -134,8 +166,8 @@ bool loadConfiguration(const path& configPath,
 
         if (key == "targetWidth") {
             try {
-                targetWidth = stoi(value);
-                 cout << "  -> Loaded targetWidth = " << targetWidth << endl;
+                config.targetWidth = stoi(value); // 更新 config 对象
+                 cout << "  -> Loaded targetWidth = " << config.targetWidth << endl;
             } catch (const std::invalid_argument& e) {
                 cerr << "Warning: Invalid value for 'targetWidth' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
                 loadedSuccessfully = false;
@@ -145,8 +177,8 @@ bool loadConfiguration(const path& configPath,
             }
         } else if (key == "charAspectRatioCorrection") {
              try {
-                charAspectRatioCorrection = stod(value);
-                 cout << "  -> Loaded charAspectRatioCorrection = " << charAspectRatioCorrection << endl;
+                config.charAspectRatioCorrection = stod(value); // 更新 config 对象
+                 cout << "  -> Loaded charAspectRatioCorrection = " << config.charAspectRatioCorrection << endl;
             } catch (const std::invalid_argument& e) {
                 cerr << "Warning: Invalid value for 'charAspectRatioCorrection' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
                  loadedSuccessfully = false;
@@ -156,16 +188,16 @@ bool loadConfiguration(const path& configPath,
             }
         } else if (key == "fontFilename") {
             if (!value.empty()) {
-                fontFilename = value;
-                cout << "  -> Loaded fontFilename = " << fontFilename << endl;
+                config.fontFilename = value; // 更新 config 对象
+                cout << "  -> Loaded fontFilename = " << config.fontFilename << endl;
             } else {
                  cerr << "Warning: Empty value for 'fontFilename' in config file at line " << lineNumber << ". Using default." << endl;
                  loadedSuccessfully = false;
             }
         } else if (key == "fontSize") {
              try {
-                fontSize = stof(value);
-                 cout << "  -> Loaded fontSize = " << fontSize << endl;
+                config.fontSize = stof(value); // 更新 config 对象
+                 cout << "  -> Loaded fontSize = " << config.fontSize << endl;
             } catch (const std::invalid_argument& e) {
                 cerr << "Warning: Invalid value for 'fontSize' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
                  loadedSuccessfully = false;
@@ -186,27 +218,27 @@ bool loadConfiguration(const path& configPath,
 
 // --- 核心功能模块 ---
 
-// 1. 获取用户输入
-string getUserInputImagePath() {
-    string imagePath;
+// 1. 获取用户输入 (不变)
+string getUserInputPath() {
+    string inputPathStr;
     // 输出英文提示
-    cout << "Please enter the image file path: ";
-    getline(cin, imagePath);
+    cout << "Please enter the image file or folder path: ";
+    getline(cin, inputPathStr);
     // 基本检查路径是否为空
-    if (imagePath.empty()) {
+    if (inputPathStr.empty()) {
         // 输出英文错误
         cerr << "Error: Input path is empty." << endl;
     }
-    // 如果需要，添加更多验证（例如，在此处或稍后检查文件是否存在）
-    return imagePath;
+    return inputPathStr;
 }
 
-// 2. 设置输出目录
-path setupOutputDirectory(const path& inputPath, const string& subDirName) {
-    path parentDir = inputPath.parent_path();
-    path outputSubDirPath = parentDir / subDirName;
+// 2. 设置单个图片的输出子目录 (在 baseOutputDir 内创建)
+path setupImageOutputSubdirectory(const path& baseOutputDir, const path& imagePath, const string& suffix) {
+    string subDirName = imagePath.stem().string() + suffix; // 使用图片名（无扩展名）+ 后缀
+    path outputSubDirPath = baseOutputDir / subDirName;
     try {
-        if (filesystem::create_directory(outputSubDirPath)) {
+        // create_directories 可以创建多级尚不存在的目录
+        if (filesystem::create_directories(outputSubDirPath)) {
             // 输出英文消息
             cout << "Created output subdirectory: " << outputSubDirPath.string() << endl;
         } else {
@@ -238,8 +270,8 @@ path setupOutputDirectory(const path& inputPath, const string& subDirName) {
     }
 }
 
-// 3. 加载输入图像
-// 返回指向图像数据的 unique_ptr，通过引用设置宽度/高度。
+
+// 3. 加载输入图像 (不变)
 unique_ptr<unsigned char, void(*)(void*)> loadImage(const string& imagePath, int& width, int& height) {
     unsigned char *data = stbi_load(imagePath.c_str(), &width, &height, nullptr, OUTPUT_CHANNELS); // 请求所需的通道数
     if (data == nullptr) {
@@ -249,15 +281,15 @@ unique_ptr<unsigned char, void(*)(void*)> loadImage(const string& imagePath, int
         return unique_ptr<unsigned char, void(*)(void*)>(nullptr, stbi_image_free); // 返回空的 unique_ptr
     }
     // 输出英文消息
-    cout << "Image loaded successfully (forced RGB): " << width << "x" << height << ", Channels: " << OUTPUT_CHANNELS << endl;
+    // cout << "Image loaded successfully (forced RGB): " << width << "x" << height << ", Channels: " << OUTPUT_CHANNELS << endl; // 在 processImageFile 中输出更合适
     return unique_ptr<unsigned char, void(*)(void*)>(data, stbi_image_free);
 }
 
-// 4. 生成 ASCII 数据
+// 4. 生成 ASCII 数据 (不变)
 vector<vector<CharColorInfo>> generateAsciiData(const unsigned char* imgData, int width, int height, int targetWidth, int targetHeight)
 {
     // 输出英文消息
-    cout << "\nGenerating ASCII data..." << endl;
+    // cout << "\nGenerating ASCII data..." << endl; // 在 processImageFile 中输出更合适
     vector<vector<CharColorInfo>> asciiResultData;
     if (!imgData || width <= 0 || height <= 0 || targetWidth <= 0 || targetHeight <= 0) {
         // 输出英文错误
@@ -301,9 +333,7 @@ vector<vector<CharColorInfo>> generateAsciiData(const unsigned char* imgData, in
 }
 
 
-// 5. 加载字体信息
-// fontBuffer 通过引用传递以保持数据有效。
-// *** 已修改：添加了用于字体位置和名称的 cout 输出 ***
+// 5. 加载字体信息 (不变)
 bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsigned char>& fontBuffer) {
     // 输出英文消息
     cout << "\nLoading font file: " << fontPath << " ..." << endl;
@@ -373,8 +403,7 @@ bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsig
 }
 
 
-// 6. 计算输出尺寸和字体度量
-// 通过引用输出计算值。
+// 6. 计算输出尺寸和字体度量 (不变)
 void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float fontSize, int targetWidth, int targetHeight,
                                int& charWidth, int& lineHeight, int& outputImageWidth, int& outputImageHeight,
                                float& scale, int& ascent, int& descent, int& lineGap)
@@ -406,11 +435,11 @@ void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float fontSize, i
     outputImageHeight = max(1, outputImageHeight);
 
     // 输出英文消息
-    cout << "Output image dimensions calculated: " << outputImageWidth << "x" << outputImageHeight << endl;
+    // cout << "Output image dimensions calculated: " << outputImageWidth << "x" << outputImageHeight << endl; // 移至 processImageFile
 }
 
 
-// 7. 设置配色方案颜色
+// 7. 设置配色方案颜色 (不变)
 void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char fgColor[3]) {
     switch (scheme) {
         case ColorScheme::WHITE_ON_BLACK:
@@ -443,8 +472,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
     }
 }
 
-// 8. 将 ASCII 艺术渲染到图像缓冲区
-// 就地修改 outputImageData。
+// 8. 将 ASCII 艺术渲染到图像缓冲区 (不变)
 void renderAsciiArt(vector<unsigned char>& outputImageData,
                     const vector<vector<CharColorInfo>>& asciiData,
                     const stbtt_fontinfo& fontInfo,
@@ -455,8 +483,6 @@ void renderAsciiArt(vector<unsigned char>& outputImageData,
                     int ascent, float scale, int lineHeight)
 {
     // 首先填充背景
-    // 优化：如果对于巨大的缓冲区更快，则使用 std::fill 或类似方法，
-    // 但直接循环通常也可以并且清晰。
     for (size_t i = 0; i < outputImageData.size(); i += OUTPUT_CHANNELS) {
         outputImageData[i]     = bgColor[0];
         outputImageData[i + 1] = bgColor[1];
@@ -470,255 +496,142 @@ void renderAsciiArt(vector<unsigned char>& outputImageData,
         for (const auto& charInfo : lineData) {
             char c = charInfo.character;
             int char_w, char_h, xoff, yoff;
-            // 如果只需要位图，则为 xadvance 和 yadvance 传递 0（使用 scale 代替）
             unsigned char* bitmap = stbtt_GetCodepointBitmap(&fontInfo, scale, scale, c, &char_w, &char_h, &xoff, &yoff);
 
-            int advanceWidth, leftSideBearing; // 需要字距宽度（advance width）来进行定位
+            int advanceWidth, leftSideBearing;
             stbtt_GetCodepointHMetrics(&fontInfo, c, &advanceWidth, &leftSideBearing);
             int charAdvance = static_cast<int>(round(advanceWidth * scale));
 
-
             if (bitmap) {
-                // 正确的绘制位置计算：
-                // 基准 Y + 字体上升高度 + 字形相对于基线的垂直偏移 Y
-                // 基准 X + 字形相对于原点的水平偏移 X（xoff 中通常隐式包含 LSB）
-                // int drawX_base = currentX + xoff; // 更简单，可能取决于字体如何包含 LSB
-                int drawX_base = currentX + static_cast<int>(round(leftSideBearing * scale)) + xoff; // 更明确
-                int drawY_base = currentY + yoff; // currentY 已经是基线
+                int drawX_base = currentX + static_cast<int>(round(leftSideBearing * scale)) + xoff;
+                int drawY_base = currentY + yoff;
 
                 for (int y = 0; y < char_h; ++y) {
                     for (int x = 0; x < char_w; ++x) {
                         int outX = drawX_base + x;
                         int outY = drawY_base + y;
-                        // 访问 outputImageData 之前进行边界检查
                         if (outX >= 0 && outX < imgWidth && outY >= 0 && outY < imgHeight) {
                             unsigned char alpha = bitmap[y * char_w + x];
-                            // if (alpha > 0) { // 如果任何 alpha > 0 则绘制（混合处理其余部分）
-                            if (alpha > 10) { // 优化：仅当 alpha 比较显著时才进行混合
+                            if (alpha > 10) {
                                 size_t pixelIndex = (static_cast<size_t>(outY) * imgWidth + outX) * OUTPUT_CHANNELS;
-
-                                // 根据方案选择颜色
-                                const unsigned char* finalColor = nullptr;
-                                if (scheme == ColorScheme::COLOR_ON_WHITE || scheme == ColorScheme::COLOR_ON_BLACK) {
-                                    finalColor = charInfo.color;
-                                } else {
-                                    finalColor = fgColor;
-                                }
-
-                                // --- Alpha 混合（推荐）---
-                                // 公式：输出 = 源色 * Alpha + 目标色 * (1 - Alpha)
+                                const unsigned char* finalColor = (scheme == ColorScheme::COLOR_ON_WHITE || scheme == ColorScheme::COLOR_ON_BLACK) ? charInfo.color : fgColor;
                                 float alphaF = alpha / 255.0f;
                                 outputImageData[pixelIndex]     = static_cast<unsigned char>(finalColor[0] * alphaF + outputImageData[pixelIndex]     * (1.0f - alphaF));
                                 outputImageData[pixelIndex + 1] = static_cast<unsigned char>(finalColor[1] * alphaF + outputImageData[pixelIndex + 1] * (1.0f - alphaF));
                                 outputImageData[pixelIndex + 2] = static_cast<unsigned char>(finalColor[2] * alphaF + outputImageData[pixelIndex + 2] * (1.0f - alphaF));
-                                // --- Alpha 混合结束 ---
-
                             }
                         }
                     }
                 }
-                stbtt_FreeBitmap(bitmap, nullptr); // 释放当前字形的位图
-            } else {
-                // 如果需要，处理缺失的字形，advanceWidth 已计算
-                // cerr << "Warning: Glyph not found for character '" << c << "'" << endl; // 英文警告 (已注释)
+                stbtt_FreeBitmap(bitmap, nullptr);
             }
-             currentX += charAdvance; // 使用计算出的字距宽度移动光标
+             currentX += charAdvance;
         }
-        currentY += lineHeight; // 移动到下一行
+        currentY += lineHeight;
     }
 }
 
 
-// 9. 保存图像
+// 9. 保存图像 (不变)
 bool saveImage(const path& outputPath, int width, int height, int channels, const vector<unsigned char>& data) {
-    // 检查数据向量是否具有预期大小
     size_t expectedSize = static_cast<size_t>(width) * height * channels;
     if (data.size() != expectedSize) {
-         // 输出英文错误
          cerr << "Error: Data size passed to saveImage (" << data.size()
               << ") does not match expected size (" << expectedSize
               << "). W=" << width << " H=" << height << " C=" << channels << endl;
          return false;
     }
     if (width <= 0 || height <= 0) {
-         // 输出英文错误
          cerr << "Error: Invalid width or height passed to saveImage (" << width << "x" << height << ")" << endl;
          return false;
     }
 
     if (!stbi_write_png(outputPath.string().c_str(), width, height, channels, data.data(), width * channels)) {
-         // 输出英文错误
         cerr << "Error: Failed to save image to '" << outputPath.string() << "'" << endl;
-        // 如果 stb_image_write 提供，则可能添加更多错误信息
         return false;
     }
     return true;
 }
 
+// --- 新增：处理单个图像文件的函数 ---
+bool processImageFile(const path& imagePath,
+                      const path& baseOutputDir, // 输出子目录应在此目录下创建
+                      const Config& config,
+                      const stbtt_fontinfo& fontInfo, // 预加载的字体信息
+                      const vector<unsigned char>& fontBuffer) // 字体数据，保持有效
+{
+    cout << "\n==================================================" << endl;
+    cout << "Processing image: " << imagePath.string() << endl;
+    cout << "==================================================" << endl;
 
-// --- 主应用程序逻辑 ---
-int main(int argc, char* argv[]) { // 添加了 argc, argv
-    // --- 默认配置 ---
-    int targetWidth_cfg = 1024; // 字符画宽度 (默认)
-    double charAspectRatioCorrection_cfg = 2.0; // 字体长宽修正 (默认)
-    string fontFilename_cfg = "Consolas.ttf"; // 字体文件名 (默认)
-    float fontSize_cfg = 15.0f; // 字体大小 (默认)
-
-    // --- 其他常量 ---
-    const string baseOutputFilename = "output_ascii_art";
-    const string outputExtension = ".png";
-    const string outputSubDirName = "ascii_output";
-    const string configFilename = "config.txt"; // 配置文件名
-
-    const vector<ColorScheme> schemesToGenerate = {
-        //ColorScheme::BLACK_ON_WHITE,
-        //ColorScheme::WHITE_ON_BLACK,
-        //ColorScheme::GREEN_ON_BLACK,
-        ColorScheme::COLOR_ON_WHITE,
-        //ColorScheme::COLOR_ON_BLACK
-    };
-    // --- 配置结束 ---
-
-    // --- 确定可执行文件路径和配置文件/字体路径 ---
-    path exePath;
-    if (argc > 0 && argv[0] != nullptr) {
-         try {
-             // 使用 argv[0]，它可能是相对路径或绝对路径
-             // 使用 canonical 尝试获取绝对路径，但要小心
-             // 因为如果路径无效或缺少权限，它可能会失败。
-             // 一个更简单的方法是只使用 parent_path()。
-             // exePath = filesystem::canonical(filesystem::path(argv[0])); // 更健壮但可能失败
-             exePath = filesystem::path(argv[0]); // 更简单的方法
-         } catch (const filesystem::filesystem_error& e) {
-             // 输出英文警告
-             cerr << "Warning: Failed to resolve executable path '" << argv[0] << "': " << e.what() << endl;
-             cerr << "Attempting to use current working directory as fallback." << endl;
-             exePath = filesystem::current_path() / (argv[0] ? filesystem::path(argv[0]).filename() : ""); // 回退尝试
-         }
-    } else {
-         // 输出英文警告
-         cerr << "Warning: Could not get executable path (argc=" << argc << "). Attempting to use current working directory." << endl;
-         // 如果 argv[0] 不可用，则回退到当前工作目录
-         try {
-             exePath = filesystem::current_path() / "unknown_executable"; // 占位符
-         } catch (const filesystem::filesystem_error& e) {
-             // 输出英文错误
-             cerr << "Error: Failed to get current working directory: " << e.what() << endl;
-             return 1; // 没有基本路径无法继续
-         }
+    // --- 步骤 2 (修改): 设置此图片的输出子目录 ---
+    path outputSubDirPath = setupImageOutputSubdirectory(baseOutputDir, imagePath, config.imageOutputSubDirSuffix);
+    if (outputSubDirPath.empty()) {
+         cerr << "Skipping image due to output directory setup failure." << endl;
+         return false; // 检查设置是否失败
     }
 
-    path exeDir = exePath.parent_path();
-    path configPathObj = exeDir / configFilename; // 配置文件路径
-
-    // --- 加载配置 ---
-    loadConfiguration(configPathObj, targetWidth_cfg, charAspectRatioCorrection_cfg, fontFilename_cfg, fontSize_cfg);
-
-    // --- 现在使用配置值 ---
-    // (上面的加载函数已经修改了 _cfg 变量的值，如果配置文件存在且有效的话)
-    cout << "\n--- Using Configuration ---" << endl;
-    cout << "Target Width: " << targetWidth_cfg << endl;
-    cout << "Aspect Ratio Correction: " << charAspectRatioCorrection_cfg << endl;
-    cout << "Font Filename: " << fontFilename_cfg << endl;
-    cout << "Font Size: " << fontSize_cfg << endl;
-    cout << "--------------------------" << endl;
-
-    path fontPathObj = exeDir / fontFilename_cfg; // 使用配置中的字体文件名构建路径
-    string finalFontPath = fontPathObj.string(); // 转换为字符串以供函数使用
-
-
-    // --- 步骤 1：获取输入 ---
-    string imagePathStr = getUserInputImagePath();
-    if (imagePathStr.empty()) return 1;
-    path imagePath(imagePathStr); // 转换为路径对象
-
-    // 基本检查输入文件是否存在
-     if (!filesystem::exists(imagePath) || !filesystem::is_regular_file(imagePath)) {
-         // 输出英文错误
-         cerr << "Error: Input image file does not exist or is not a regular file: " << imagePath.string() << endl;
-         return 1;
-     }
-
-
-    // --- 步骤 2：设置输出 ---
-    path outputSubDirPath = setupOutputDirectory(imagePath, outputSubDirName);
-    if (outputSubDirPath.empty()) return 1; // 检查设置是否失败
-
     // --- 步骤 3：加载图像 ---
-    // 输出英文消息
-    cout << "\nLoading image..." << endl;
+    cout << "Loading image..." << endl;
     auto load_start = high_resolution_clock::now();
     int width, height;
     auto imgDataPtr = loadImage(imagePath.string(), width, height); // unique_ptr 管理内存
     auto load_end = high_resolution_clock::now();
     auto load_duration = duration_cast<milliseconds>(load_end - load_start);
-      // 输出英文消息
-      cout << "-> Image loading time: " << fixed << setprecision(3) << load_duration.count() / 1000.0 << " seconds" << endl;
-    if (!imgDataPtr) return 1;
+    cout << "-> Image loaded (" << width << "x" << height << "), Time: "
+         << fixed << setprecision(3) << load_duration.count() / 1000.0 << " seconds" << endl;
+    if (!imgDataPtr) {
+        cerr << "Skipping image due to loading failure." << endl;
+        return false;
+    }
 
 
-    // --- 启动总处理计时器 ---
-    auto total_processing_start = high_resolution_clock::now();
+    // --- 启动此图像处理计时器 ---
+    auto image_processing_start = high_resolution_clock::now();
 
     // --- 步骤 4：生成 ASCII 数据 ---
-    // 使用配置的 targetWidth 和 charAspectRatioCorrection
-    auto ascii_conv_start = high_resolution_clock::now(); // <-- ASCII 开始时间
-    int targetHeight = static_cast<int>(round(static_cast<double>(height * targetWidth_cfg) / (width * charAspectRatioCorrection_cfg)));
-    targetHeight = max(1, targetHeight); // 确保高度至少为 1
-    // 输出英文消息
-    cout << "Calculated ASCII height: " << targetHeight << endl;
+    cout << "Generating ASCII data..." << endl;
+    auto ascii_conv_start = high_resolution_clock::now();
+    int targetHeight = static_cast<int>(round(static_cast<double>(height * config.targetWidth) / (width * config.charAspectRatioCorrection)));
+    targetHeight = max(1, targetHeight);
+    cout << "Calculated ASCII grid: " << config.targetWidth << "x" << targetHeight << endl;
 
     vector<vector<CharColorInfo>> asciiResultData = generateAsciiData(
-        imgDataPtr.get(), width, height, targetWidth_cfg, targetHeight); // 使用 targetWidth_cfg
-    auto ascii_conv_end = high_resolution_clock::now(); // <-- ASCII 结束时间
+        imgDataPtr.get(), width, height, config.targetWidth, targetHeight);
+    auto ascii_conv_end = high_resolution_clock::now();
     if (asciiResultData.empty()) {
-         // 输出英文错误
-         cerr << "Error: Failed to generate ASCII data." << endl;
-         return 1; // 检查数据生成是否失败
+        cerr << "Error: Failed to generate ASCII data for this image. Skipping." << endl;
+        return false;
     }
     auto ascii_conv_duration = duration_cast<milliseconds>(ascii_conv_end - ascii_conv_start);
-    // 输出英文消息
     cout << "-> ASCII data conversion time: " << fixed << setprecision(3) << ascii_conv_duration.count() / 1000.0 << " seconds" << endl;
 
 
-    // --- 步骤 5：加载字体 ---
-    // 注意：如果需要，字体加载时间会单独测量，但此处是为了设置
-    stbtt_fontinfo fontInfo;
-    vector<unsigned char> fontBuffer; // 保持缓冲区对 fontInfo 有效
-    if (!loadFontInfo(finalFontPath, fontInfo, fontBuffer)) { // 使用 finalFontPath (来自配置)
-        // 输出英文错误
-        cerr << "Please ensure the font file '" << fontFilename_cfg << "' (specified in config or default) is in the same directory as the executable." << endl;
-        return 1;
-    }
-
-
     // --- 步骤 6：计算尺寸 ---
-    // 使用配置的 fontSize, targetWidth, targetHeight
     int charWidth, lineHeight, outputImageWidth, outputImageHeight, ascent, descent, lineGap;
     float scale;
-    calculateOutputDimensions(fontInfo, fontSize_cfg, targetWidth_cfg, targetHeight, // 使用 fontSize_cfg, targetWidth_cfg
+    calculateOutputDimensions(fontInfo, config.fontSize, config.targetWidth, targetHeight,
                               charWidth, lineHeight, outputImageWidth, outputImageHeight,
                               scale, ascent, descent, lineGap);
-     // 添加对计算出的零尺寸的检查
-     if (outputImageWidth <= 0 || outputImageHeight <= 0) {
-         // 输出英文错误
-         cerr << "Error: Calculated output image dimensions are invalid (" << outputImageWidth << "x" << outputImageHeight << ")" << endl;
-         return 1;
-     }
+    if (outputImageWidth <= 0 || outputImageHeight <= 0) {
+        cerr << "Error: Calculated output image dimensions are invalid (" << outputImageWidth << "x" << outputImageHeight << "). Skipping image." << endl;
+        return false;
+    }
+     cout << "Calculated output image size: " << outputImageWidth << "x" << outputImageHeight << endl;
 
 
     // --- 步骤 7：处理每个选定的方案 ---
-    // 输出英文消息
-    cout << "\nStarting processing of selected color schemes:" << endl;
-    for (const auto& currentScheme : schemesToGenerate) {
-
-        auto theme_start = high_resolution_clock::now(); // <-- 主题开始时间
+    cout << "Processing color schemes for this image:" << endl;
+    bool allSchemesSuccessful = true;
+    for (const auto& currentScheme : config.schemesToGenerate) {
+        auto theme_start = high_resolution_clock::now();
 
         string schemeSuffix = getSchemeSuffix(currentScheme);
-        string currentOutputFilename = baseOutputFilename + schemeSuffix + outputExtension;
+        // 使用原始图片的文件名（无扩展名）作为基础，加上颜色后缀
+        string baseNameForOutput = imagePath.stem().string() + schemeSuffix;
+        string currentOutputFilename = baseNameForOutput + config.outputExtension;
         path finalOutputPathObj = outputSubDirPath / currentOutputFilename;
 
-        // 输出英文消息
         cout << "  Processing scheme: " << schemeSuffix.substr(1)
              << ", Outputting to: " << finalOutputPathObj.string() << endl;
 
@@ -729,71 +642,211 @@ int main(int argc, char* argv[]) { // 添加了 argc, argv
 
         // b. 为此方案创建缓冲区
         vector<unsigned char> outputImageData;
-         try {
-             // 在计算大小之前检查潜在的溢出
-             size_t required_size = static_cast<size_t>(outputImageWidth) * outputImageHeight * OUTPUT_CHANNELS;
-              if (outputImageWidth > 0 && outputImageHeight > 0 && required_size / outputImageWidth / outputImageHeight != OUTPUT_CHANNELS) {
-                   // 输出英文错误
-                   throw std::overflow_error("Image dimensions are too large, causing size calculation overflow.");
-               }
-              if (required_size == 0 && (outputImageWidth > 0 || outputImageHeight > 0)) {
-                   // 输出英文错误
-                  throw std::runtime_error("Calculated image size is zero unexpectedly.");
-              }
-              if (required_size > outputImageData.max_size()) {
-                   // 输出英文错误
-                   throw std::runtime_error("Required image buffer size exceeds vector's maximum capacity.");
-               }
-              outputImageData.resize(required_size);
-         } catch (const std::bad_alloc& e) {
-             // 输出英文错误
-             cerr << "Error: Failed to allocate output image buffer (Size: " << outputImageWidth << "x" << outputImageHeight << "). Out of memory?" << endl;
-             cerr << e.what() << endl;
+        try {
+            size_t required_size = static_cast<size_t>(outputImageWidth) * outputImageHeight * OUTPUT_CHANNELS;
+             if (outputImageWidth > 0 && outputImageHeight > 0 && required_size / outputImageWidth / outputImageHeight != OUTPUT_CHANNELS) {
+                 throw std::overflow_error("Image dimensions are too large, causing size calculation overflow.");
+             }
+             if (required_size == 0 && (outputImageWidth > 0 || outputImageHeight > 0)) {
+                 throw std::runtime_error("Calculated image size is zero unexpectedly.");
+             }
+             if (required_size > outputImageData.max_size()) {
+                  throw std::runtime_error("Required image buffer size exceeds vector's maximum capacity.");
+             }
+             outputImageData.resize(required_size);
+        } catch (const std::bad_alloc& e) {
+            cerr << "Error: Failed to allocate output image buffer (Size: " << outputImageWidth << "x" << outputImageHeight << "). Out of memory? Skipping scheme." << endl;
+            cerr << e.what() << endl;
+            allSchemesSuccessful = false;
+            continue; // 跳过此主题
+        } catch (const std::exception& e) {
+             cerr << "Error: Exception occurred while preparing output image buffer: " << e.what() << ". Skipping scheme." << endl;
+             allSchemesSuccessful = false;
              continue; // 跳过此主题
-         } catch (const std::exception& e) {
-              // 输出英文错误
-              cerr << "Error: Exception occurred while preparing output image buffer: " << e.what() << endl;
-              continue; // 跳过此主题
-         }
+        }
 
-
-        // c. 渲染艺术（PNG 创建第 1 部分）
-        auto render_start = high_resolution_clock::now(); // <-- 渲染开始时间
+        // c. 渲染艺术
+        auto render_start = high_resolution_clock::now();
         renderAsciiArt(outputImageData, asciiResultData, fontInfo, currentScheme,
                        bgColor, fgColor, outputImageWidth, outputImageHeight,
                        ascent, scale, lineHeight);
-        auto render_end = high_resolution_clock::now(); // <-- 渲染结束时间
+        auto render_end = high_resolution_clock::now();
         auto render_duration = duration_cast<milliseconds>(render_end - render_start);
+        cout << "    -> Rendering time: " << fixed << setprecision(3) << render_duration.count() / 1000.0 << " seconds" << endl;
 
-        cout << "     -> Rendering time: " << fixed << setprecision(3) << render_duration.count() / 1000.0 << " seconds" << endl;
-
-
-        // d. 保存图像（PNG 创建第 2 部分）
+        // d. 保存图像
          auto save_start = high_resolution_clock::now();
         if (!saveImage(finalOutputPathObj, outputImageWidth, outputImageHeight, OUTPUT_CHANNELS, outputImageData)) {
-
             cerr << "  Error: Failed to save scheme " << schemeSuffix.substr(1) << "." << endl;
+            allSchemesSuccessful = false;
             // 决定是继续还是停止：continue;
         } else {
             auto save_end = high_resolution_clock::now();
             auto save_duration = duration_cast<milliseconds>(save_end - save_start);
-
-            cout << "     -> Saving time: " << fixed << setprecision(3) << save_duration.count() / 1000.0 << " seconds" << endl;
-
+            cout << "    -> Saving time: " << fixed << setprecision(3) << save_duration.count() / 1000.0 << " seconds" << endl;
             cout << "  Scheme " << schemeSuffix.substr(1) << " saved successfully." << endl;
         }
 
-        auto theme_end = high_resolution_clock::now(); // <-- 主题结束时间
+        auto theme_end = high_resolution_clock::now();
         auto theme_duration = duration_cast<milliseconds>(theme_end - theme_start);
-         cout << "  -> Total processing time for this theme: " << fixed << setprecision(3) << theme_duration.count() / 1000.0 << " seconds" << endl;
+         // cout << "  -> Total processing time for this theme: " << fixed << setprecision(3) << theme_duration.count() / 1000.0 << " seconds" << endl;
 
     } // --- 方案循环结束 ---
 
-    auto total_processing_end = high_resolution_clock::now(); // <-- 总处理结束时间
-    auto total_processing_duration = duration_cast<milliseconds>(total_processing_end - total_processing_start);
+    auto image_processing_end = high_resolution_clock::now();
+    auto image_processing_duration = duration_cast<milliseconds>(image_processing_end - image_processing_start);
+    cout << "-> Finished processing image '" << imagePath.filename().string() << "'. Total time: "
+         << fixed << setprecision(3) << image_processing_duration.count() / 1000.0 << " seconds" << endl;
 
-    cout << "\nProcessing finished for all selected color schemes." << endl;
-    cout << "-> Total core processing time: " << fixed << setprecision(3) << total_processing_duration.count() / 1000.0 << " seconds" << endl;
+    return allSchemesSuccessful; // 如果所有方案都成功则返回 true
+}
 
-    return 0;
+
+// --- 主应用程序逻辑 ---
+int main(int argc, char* argv[]) {
+    Config config; // 使用默认值初始化 Config 对象
+    const string configFilename = "config.txt";
+
+    // --- 确定可执行文件路径和配置文件路径 ---
+    path exePath;
+    if (argc > 0 && argv[0] != nullptr) {
+         try {
+             exePath = filesystem::path(argv[0]);
+         } catch (const filesystem::filesystem_error& e) {
+             cerr << "Warning: Failed to resolve executable path '" << argv[0] << "': " << e.what() << endl;
+             cerr << "Attempting to use current working directory as fallback." << endl;
+             exePath = filesystem::current_path() / (argv[0] ? filesystem::path(argv[0]).filename() : "");
+         }
+    } else {
+         cerr << "Warning: Could not get executable path (argc=" << argc << "). Attempting to use current working directory." << endl;
+         try {
+             exePath = filesystem::current_path() / "unknown_executable";
+         } catch (const filesystem::filesystem_error& e) {
+             cerr << "Error: Failed to get current working directory: " << e.what() << endl;
+             return 1;
+         }
+    }
+    path exeDir = exePath.parent_path();
+    path configPathObj = exeDir / configFilename;
+
+    // --- 加载配置 ---
+    loadConfiguration(configPathObj, config); // 传递 Config 对象引用
+    config.finalFontPath = (exeDir / config.fontFilename).string(); // 计算最终字体路径
+
+    // --- 打印最终使用的配置 ---
+    cout << "\n--- Using Configuration ---" << endl;
+    cout << "Target Width: " << config.targetWidth << endl;
+    cout << "Aspect Ratio Correction: " << config.charAspectRatioCorrection << endl;
+    cout << "Font Filename: " << config.fontFilename << endl;
+    cout << "Font Size: " << config.fontSize << endl;
+    cout << "--------------------------" << endl;
+
+    // --- 加载字体 (一次性) ---
+    stbtt_fontinfo fontInfo;
+    vector<unsigned char> fontBuffer; // 必须在 fontInfo 的作用域内保持有效
+    if (!loadFontInfo(config.finalFontPath, fontInfo, fontBuffer)) {
+        cerr << "Error loading font: " << config.finalFontPath << endl;
+        cerr << "Please ensure the font file '" << config.fontFilename << "' (specified in config or default) is in the same directory as the executable." << endl;
+        return 1;
+    }
+
+    // --- 获取输入路径 ---
+    string inputPathStr = getUserInputPath();
+    if (inputPathStr.empty()) return 1;
+    path inputPath(inputPathStr);
+
+    int processedCount = 0;
+    int failedCount = 0;
+    auto overall_start_time = high_resolution_clock::now();
+
+    // --- 检查输入路径类型 ---
+    try {
+        if (!filesystem::exists(inputPath)) {
+            cerr << "Error: Input path does not exist: " << inputPath.string() << endl;
+            return 1;
+        }
+
+        if (filesystem::is_regular_file(inputPath)) {
+            // --- 处理单个文件 ---
+            cout << "\nInput is a single file. Processing..." << endl;
+            if (isImageFile(inputPath)) {
+                path baseOutputDir = inputPath.parent_path(); // 输出到图片所在目录
+                if (processImageFile(inputPath, baseOutputDir, config, fontInfo, fontBuffer)) {
+                    processedCount++;
+                } else {
+                    failedCount++;
+                }
+            } else {
+                 cerr << "Error: Input file is not a supported image type: " << inputPath.string() << endl;
+                 failedCount++;
+            }
+
+        } else if (filesystem::is_directory(inputPath)) {
+            // --- 处理文件夹 ---
+            cout << "\nInput is a directory. Processing image files inside..." << endl;
+
+            // 创建主输出目录 (在输入目录旁边)
+            path batchBaseOutputDir = inputPath.parent_path() / (inputPath.filename().string() + config.batchOutputSubDirSuffix);
+            try {
+                 if(filesystem::create_directories(batchBaseOutputDir)) {
+                     cout << "Created main batch output directory: " << batchBaseOutputDir.string() << endl;
+                 } else if (!filesystem::is_directory(batchBaseOutputDir)) {
+                     cerr << "Error: Failed to create or access main batch output directory: " << batchBaseOutputDir.string() << endl;
+                     return 1; // 无法创建主输出目录则退出
+                 }
+            } catch (const filesystem::filesystem_error& e) {
+                 cerr << "Error creating main batch output directory: " << batchBaseOutputDir.string() << " - " << e.what() << endl;
+                 return 1;
+            }
+
+
+            filesystem::directory_iterator dir_iter(inputPath);
+            filesystem::directory_iterator end_iter; // 默认构造为结束迭代器
+
+            for (; dir_iter != end_iter; ++dir_iter) {
+                const auto& entry = *dir_iter;
+                if (entry.is_regular_file() && isImageFile(entry.path())) {
+                    // 对于文件夹中的每个图片，都在 batchBaseOutputDir 中处理
+                    if (processImageFile(entry.path(), batchBaseOutputDir, config, fontInfo, fontBuffer)) {
+                         processedCount++;
+                    } else {
+                         failedCount++;
+                    }
+                }
+                // 可以选择性地忽略非图像文件或子目录
+                // else {
+                //     if (!entry.is_directory()) { // 不报告目录本身
+                //          cout << "Skipping non-image file: " << entry.path().filename().string() << endl;
+                //     }
+                // }
+            }
+             if (processedCount == 0 && failedCount == 0) {
+                 cout << "No supported image files found in the directory: " << inputPath.string() << endl;
+             }
+
+        } else {
+            cerr << "Error: Input path is neither a regular file nor a directory: " << inputPath.string() << endl;
+            return 1;
+        }
+
+    } catch (const filesystem::filesystem_error& e) {
+         cerr << "Filesystem error accessing path '" << inputPath.string() << "': " << e.what() << endl;
+         return 1;
+    } catch (const std::exception& e) {
+         cerr << "An unexpected error occurred: " << e.what() << endl;
+         return 1;
+    }
+
+    auto overall_end_time = high_resolution_clock::now();
+    auto overall_duration = duration_cast<seconds>(overall_end_time - overall_start_time);
+
+    cout << "\n==================================================" << endl;
+    cout << "Overall Processing Summary:" << endl;
+    cout << "  Successfully processed: " << processedCount << " image(s)" << endl;
+    cout << "  Failed/Skipped:       " << failedCount << " image(s)" << endl;
+    cout << "  Total time elapsed:   " << overall_duration.count() << " seconds" << endl;
+    cout << "==================================================" << endl;
+
+    cin.get();
+    return (failedCount > 0); // 如果有失败则返回非零
 }
