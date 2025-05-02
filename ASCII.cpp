@@ -44,7 +44,7 @@ const set<string> SUPPORTED_EXTENSIONS = {
 
 enum class ColorScheme {
     BLACK_ON_WHITE, WHITE_ON_BLACK, GREEN_ON_BLACK, PURPLE_ON_BLACK,
-    COLOR_ON_WHITE, COLOR_ON_BLACK,PINK_ON_BLUE,BLUE_ON_PINK,
+    COLOR_ON_WHITE, COLOR_ON_BLACK,
 };
 
 struct CharColorInfo {
@@ -71,10 +71,7 @@ struct Config {
 
     vector<ColorScheme> schemesToGenerate = {
         ColorScheme::COLOR_ON_WHITE,
-        //ColorScheme::WHITE_ON_BLACK,
         ColorScheme::GREEN_ON_BLACK,
-        ColorScheme::PINK_ON_BLUE,
-        ColorScheme::BLUE_ON_PINK,
     };
 };
 
@@ -461,7 +458,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             fgColor[0] = 0x80; fgColor[1] = 0x00; fgColor[2] = 0x80; // #800080 (Purple)
             break;
         case ColorScheme::COLOR_ON_WHITE:
-            bgColor[0] = 0xC0; bgColor[1] = 0xC0; bgColor[2] = 0xC0; // #C0C0C0 (Light Gray)
+            bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; // #C8C8C8 (Light Gray)
             fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black) - 未使用
             break;
         case ColorScheme::COLOR_ON_BLACK:
@@ -469,18 +466,9 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White) - 未使用
             break;
 
-        case ColorScheme::BLUE_ON_PINK:
-            bgColor[0] = 0xf5; bgColor[1] = 0xab; bgColor[2] = 0xb9; // #f5abb9 (Light Pink)
-            fgColor[0] = 0x5b; fgColor[1] = 0xcf; fgColor[2] = 0xfa; // #5bcffa (Light Blue)
-            break;
-        case ColorScheme::PINK_ON_BLUE:
-            bgColor[0] = 0x5b; bgColor[1] = 0xcf; bgColor[2] = 0xfa; // #5bcffa (Light Blue)
-            fgColor[0] = 0xf5; fgColor[1] = 0xab; fgColor[2] = 0xb9; // #f5abb9 (Light Pink)
-            break;
-
         case ColorScheme::BLACK_ON_WHITE:
         default:
-            bgColor[0] = 0xC0; bgColor[1] = 0xC0; bgColor[2] = 0xC0; // #C0C0C0 (Light Gray)
+            bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; // #C8C8C8 (Light Gray)
             fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; // #000000 (Black)
             break;
     }
