@@ -1,0 +1,4 @@
+targetWidth = 800
+charAspectRatioCorrection = 2.0
+fontFilename = Consolas.ttf
+fontSize = 12.0
