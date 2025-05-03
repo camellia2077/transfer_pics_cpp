@@ -53,7 +53,12 @@ enum class ColorScheme {
     WHITE_ON_BLUE,    // 白色前景，蓝色背景
     BLACK_ON_YELLOW,  // 黑色前景，黄色背景
     BLACK_ON_CYAN,    // 黑色前景，青色背景
-    SEPIA             // 深褐色调 (使用固定颜色，模拟旧照片)
+    SEPIA,             // 深褐色调 (使用固定颜色，模拟旧照片)
+    MAGENTA_ON_BLACK,
+    WHITE_ON_DARK_RED,
+    GRAY_ON_BLACK,
+    SOLARIZED_DARK,
+    SOLARIZED_LIGHT,
 };
 
 struct CharColorInfo {
@@ -89,7 +94,12 @@ struct Config {
         ColorScheme::YELLOW_ON_BLACK,   // 黄字黑底
         ColorScheme::WHITE_ON_BLUE,     // 白字蓝底
         ColorScheme::BLACK_ON_YELLOW,   // 黑字黄底
-        ColorScheme::SEPIA              // 深褐色调
+        ColorScheme::SEPIA,              // 深褐色调
+        ColorScheme::MAGENTA_ON_BLACK,//洋红字黑底
+        ColorScheme::WHITE_ON_DARK_RED,//白字暗红底
+        ColorScheme::GRAY_ON_BLACK,//灰字黑底
+        ColorScheme::SOLARIZED_DARK,//暗色模式变体 - 灰青字深蓝灰底
+        ColorScheme::SOLARIZED_LIGHT,//亮色模式变体 - 深灰字米白底
     };
 };
 
@@ -153,7 +163,11 @@ string getSchemeSuffix(ColorScheme scheme) {
         case ColorScheme::BLACK_ON_YELLOW:  return "_BlackOnYellow";
         case ColorScheme::BLACK_ON_CYAN:    return "_BlackOnCyan";
         case ColorScheme::SEPIA:            return "_Sepia";
-
+        case ColorScheme::MAGENTA_ON_BLACK: return "_MagentaOnBlack";
+        case ColorScheme::WHITE_ON_DARK_RED: return "_WhiteOnDarkRed";
+        case ColorScheme::GRAY_ON_BLACK:    return "_GrayOnBlack";
+        case ColorScheme::SOLARIZED_DARK:   return "_SolarizedDark";
+        case ColorScheme::SOLARIZED_LIGHT:  return "_SolarizedLight";
         default:                            return "_UnknownScheme";
     }
 }
@@ -526,7 +540,26 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             // 前景色: 深棕色
             fgColor[0] = 0x70; fgColor[1] = 0x42; fgColor[2] = 0x14; // #704214 (SaddleBrown-ish)
             break;
-
+            case ColorScheme::MAGENTA_ON_BLACK:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
+            fgColor[0] = 0xFF; fgColor[1] = 0x00; fgColor[2] = 0xFF; // #FF00FF (Magenta)
+            break;
+        case ColorScheme::WHITE_ON_DARK_RED:
+            bgColor[0] = 0x8B; bgColor[1] = 0x00; bgColor[2] = 0x00; // #8B0000 (Dark Red)
+            fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White)
+            break;
+        case ColorScheme::GRAY_ON_BLACK:
+            bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; // #000000 (Black)
+            fgColor[0] = 0xAA; fgColor[1] = 0xAA; fgColor[2] = 0xAA; // #AAAAAA (Gray)
+            break;
+        case ColorScheme::SOLARIZED_DARK:
+            bgColor[0] = 0x00; bgColor[1] = 0x2b; bgColor[2] = 0x36; // #002b36 (Base03)
+            fgColor[0] = 0x83; fgColor[1] = 0x94; fgColor[2] = 0x96; // #839496 (Base0)
+            break;
+        case ColorScheme::SOLARIZED_LIGHT:
+            bgColor[0] = 0xfd; bgColor[1] = 0xf6; bgColor[2] = 0xe3; // #fdf6e3 (Base3)
+            fgColor[0] = 0x65; fgColor[1] = 0x7b; fgColor[2] = 0x83; // #657b83 (Base00)
+            break;
 
         // --- 默认/旧的 BLACK_ON_WHITE (背景已改为浅灰) ---
         case ColorScheme::BLACK_ON_WHITE: // 使用浅灰背景
