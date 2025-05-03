@@ -89,6 +89,10 @@ struct Config {
     // --- PDF Specific Config ---
     float pdfFontSize = 10.0f; // Font size in points for PDF output
 
+    // --- 新增: 控制 PDF 输出 ---
+    // 在此处修改：设置为 true 以生成 PDF，设置为 false 以禁用 PDF 生成
+    bool generatePdfOutput = false;
+
     // --- 其他处理相关的常量 ---
     string baseOutputFilename = "output_ascii_art";
     string outputPngExtension = ".png"; // Explicitly name PNG extension
@@ -190,6 +194,7 @@ string getSchemeSuffix(ColorScheme scheme) {
 
 
 // --- 配置加载函数 (Add pdfFontSize) ---
+// 注意：此函数现在不会读取 generatePdfOutput，因为它是在代码中设置的
 bool loadConfiguration(const path& configPath, Config& config)
 {
     ifstream configFile(configPath);
@@ -244,11 +249,11 @@ bool loadConfiguration(const path& configPath, Config& config)
                 cout << "Info: Unknown key '" << key << "' in config file at line " << lineNumber << ". Ignoring." << endl;
             }
         } catch (const std::invalid_argument& e) {
-             cerr << "Warning: Invalid value for '" << key << "' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
-             loadedSuccessfully = false;
+           cerr << "Warning: Invalid value for '" << key << "' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+           loadedSuccessfully = false;
         } catch (const std::out_of_range& e) {
-             cerr << "Warning: Value out of range for '" << key << "' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
-             loadedSuccessfully = false;
+           cerr << "Warning: Value out of range for '" << key << "' in config file at line " << lineNumber << ". Using default. Value: \"" << value << "\"" << endl;
+           loadedSuccessfully = false;
         }
     }
 
@@ -292,9 +297,9 @@ path setupImageOutputSubdirectory(const path& baseOutputDir, const path& imagePa
     } catch (const filesystem::filesystem_error& e) {
         cerr << "Error: Filesystem error occurred while creating/accessing output subdirectory: " << outputSubDirPath.string() << endl;
         cerr << "Details: " << e.what() << endl;
-         if (!filesystem::is_directory(outputSubDirPath)) return path();
-         cerr << "Warning: Attempting to continue, assuming directory exists..." << endl;
-         return outputSubDirPath;
+        if (!filesystem::is_directory(outputSubDirPath)) return path();
+        cerr << "Warning: Attempting to continue, assuming directory exists..." << endl;
+        return outputSubDirPath;
     } catch (const std::exception& e) {
         cerr << "Error: An unknown exception occurred while creating directory: " << e.what() << endl;
         return path();
@@ -305,7 +310,7 @@ path setupImageOutputSubdirectory(const path& baseOutputDir, const path& imagePa
 // 3. 加载输入图像 (不变)
 unique_ptr<unsigned char, void(*)(void*)> loadImage(const string& imagePath, int& width, int& height) {
    // ... (保持不变) ...
-   unsigned char *data = stbi_load(imagePath.c_str(), &width, &height, nullptr, OUTPUT_CHANNELS);
+  unsigned char *data = stbi_load(imagePath.c_str(), &width, &height, nullptr, OUTPUT_CHANNELS);
     if (data == nullptr) {
         cerr << "Error: Failed to load image '" << imagePath << "' (or convert to RGB)" << endl;
         cerr << "STB Image Error Reason: " << stbi_failure_reason() << endl;
@@ -379,10 +384,10 @@ bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsig
      string fontName = "Name not found";
     int length = 0;
     const char* namePtr = stbtt_GetFontNameString(&fontInfo, &length,
-                                                  STBTT_PLATFORM_ID_MICROSOFT,
-                                                  STBTT_MS_EID_UNICODE_BMP,
-                                                  STBTT_MS_LANG_ENGLISH,
-                                                  4); // Name ID 4: Full font name
+                                                STBTT_PLATFORM_ID_MICROSOFT,
+                                                STBTT_MS_EID_UNICODE_BMP,
+                                                STBTT_MS_LANG_ENGLISH,
+                                                4); // Name ID 4: Full font name
 
     if (namePtr && length > 0) {
         string tempName;
@@ -420,8 +425,8 @@ bool loadFontInfo(const string& fontPath, stbtt_fontinfo& fontInfo, vector<unsig
 // 6. 计算输出尺寸和字体度量 (基本不变, 但区分 PNG 和 PDF)
 // Note: This function calculates pixel dimensions for PNG. PDF dimensions are calculated differently.
 void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float pngFontSize, int targetWidth, int targetHeight,
-                               int& charWidthPx, int& lineHeightPx, int& outputImageWidthPx, int& outputImageHeightPx,
-                               float& scaleForPng, int& ascentPx, int& descentPx, int& lineGapPx)
+                                int& charWidthPx, int& lineHeightPx, int& outputImageWidthPx, int& outputImageHeightPx,
+                                float& scaleForPng, int& ascentPx, int& descentPx, int& lineGapPx)
 {
     scaleForPng = stbtt_ScaleForPixelHeight(&fontInfo, pngFontSize);
     stbtt_GetFontVMetrics(&fontInfo, &ascentPx, &descentPx, &lineGapPx);
@@ -503,7 +508,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             bgColor[0] = 0xF0; bgColor[1] = 0xE6; bgColor[2] = 0x8C; // #F0E68C (Khaki-ish)
             fgColor[0] = 0x70; fgColor[1] = 0x42; fgColor[2] = 0x14; // #704214 (SaddleBrown-ish)
             break;
-         case ColorScheme::SOLARIZED_DARK:
+        case ColorScheme::SOLARIZED_DARK:
             bgColor[0] = 0x00; bgColor[1] = 0x2b; bgColor[2] = 0x36; // #002b36 (Base03)
             fgColor[0] = 0x83; fgColor[1] = 0x94; fgColor[2] = 0x96; // #839496 (Base0)
             break;
@@ -519,7 +524,7 @@ void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0xAA; // #0000AA (Darker Blue)
             fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White)
             break;
-         case ColorScheme::WHITE_ON_DARK_RED:
+        case ColorScheme::WHITE_ON_DARK_RED:
             bgColor[0] = 0x8B; bgColor[1] = 0x00; bgColor[2] = 0x00; // #8B0000 (Dark Red)
             fgColor[0] = 0xFF; fgColor[1] = 0xFF; fgColor[2] = 0xFF; // #FFFFFF (White)
             break;
@@ -727,8 +732,8 @@ bool savePdf(const path& outputPath,
         // --- Finalize Text and Save ---
         HPDF_Page_EndText(page);
         if (HPDF_SaveToFile(pdf, outputPath.string().c_str()) != HPDF_OK) {
-             cerr << "PDF Error: Cannot save PDF to file: " << outputPath.string() << endl;
-             throw runtime_error("Failed to save PDF file."); // Trigger cleanup
+           cerr << "PDF Error: Cannot save PDF to file: " << outputPath.string() << endl;
+           throw runtime_error("Failed to save PDF file."); // Trigger cleanup
         }
 
     } catch (const std::exception& e) {
@@ -748,7 +753,7 @@ bool savePdf(const path& outputPath,
 
 
 
-// --- Modified: Process single image file (Calls both saveImage and savePdf) ---
+// --- Modified: Process single image file (Calls saveImage and conditionally savePdf) ---
 bool processImageFile(const path& imagePath,
                       const path& baseOutputDir, // Output sub-directory base
                       const Config& config,
@@ -880,20 +885,24 @@ bool processImageFile(const path& imagePath,
             cout << "  Scheme PNG " << schemeSuffix.substr(1) << " saved successfully." << endl;
         }
 
-        // --- PDF Output ---
-        string pdfOutputFilename = baseNameForOutput + config.outputPdfExtension;
-        path finalPdfOutputPath = outputSubDirPath / pdfOutputFilename;
-         cout << "  Outputting PDF to: " << finalPdfOutputPath.string() << endl;
+        // --- PDF Output (Conditional based on config.generatePdfOutput) ---
+        if (config.generatePdfOutput) { // <---- 在这里添加了检查
+            string pdfOutputFilename = baseNameForOutput + config.outputPdfExtension;
+            path finalPdfOutputPath = outputSubDirPath / pdfOutputFilename;
+            cout << "  Outputting PDF to: " << finalPdfOutputPath.string() << endl;
 
-        auto save_pdf_start = high_resolution_clock::now();
-        if (!savePdf(finalPdfOutputPath, asciiResultData, config, currentScheme, bgColor, fgColor)) {
-             cerr << "  Error: Failed to save PDF for scheme " << schemeSuffix.substr(1) << "." << endl;
-             allSchemesSuccessful = false; // Mark failure
+            auto save_pdf_start = high_resolution_clock::now();
+            if (!savePdf(finalPdfOutputPath, asciiResultData, config, currentScheme, bgColor, fgColor)) {
+                 cerr << "  Error: Failed to save PDF for scheme " << schemeSuffix.substr(1) << "." << endl;
+                 allSchemesSuccessful = false; // Mark failure
+            } else {
+                auto save_pdf_end = high_resolution_clock::now();
+                auto save_pdf_duration = duration_cast<milliseconds>(save_pdf_end - save_pdf_start);
+                 cout << "    -> PDF Saving time: " << fixed << setprecision(3) << save_pdf_duration.count() / 1000.0 << " seconds" << endl;
+                 cout << "  Scheme PDF " << schemeSuffix.substr(1) << " saved successfully." << endl;
+            }
         } else {
-            auto save_pdf_end = high_resolution_clock::now();
-            auto save_pdf_duration = duration_cast<milliseconds>(save_pdf_end - save_pdf_start);
-             cout << "    -> PDF Saving time: " << fixed << setprecision(3) << save_pdf_duration.count() / 1000.0 << " seconds" << endl;
-             cout << "  Scheme PDF " << schemeSuffix.substr(1) << " saved successfully." << endl;
+             cout << "  PDF output is disabled by internal configuration." << endl;
         }
 
 
@@ -908,7 +917,7 @@ bool processImageFile(const path& imagePath,
     cout << "-> Finished processing image '" << imagePath.filename().string() << "'. Total time: "
          << fixed << setprecision(3) << image_processing_duration.count() / 1000.0 << " seconds" << endl;
 
-    return allSchemesSuccessful; // Return true only if ALL schemes (PNG and PDF) succeeded for this image
+    return allSchemesSuccessful; // Return true only if ALL schemes (PNG and potentially PDF) succeeded for this image
 }
 
 
@@ -921,13 +930,13 @@ int main(int argc, char* argv[]) {
     path exePath;
      try { // Get executable path more robustly
         if (argc > 0 && argv[0] != nullptr && filesystem::exists(argv[0])) {
-             exePath = filesystem::canonical(argv[0]); // Get absolute path
+            exePath = filesystem::canonical(argv[0]); // Get absolute path
          } else {
              // Fallback or error if argv[0] is unreliable
             #ifdef _WIN32 // Windows specific fallback
-                char pathBuf[MAX_PATH];
-                 GetModuleFileNameA(NULL, pathBuf, MAX_PATH);
-                 exePath = pathBuf;
+                 char pathBuf[MAX_PATH];
+                  GetModuleFileNameA(NULL, pathBuf, MAX_PATH);
+                  exePath = pathBuf;
             #else // Linux/macOS fallback (may need readlink /proc/self/exe or similar)
                  // For simplicity, using current_path as a less reliable fallback
                  cerr << "Warning: Could not reliably determine executable path from argv[0]. Using current directory." << endl;
@@ -966,6 +975,8 @@ int main(int argc, char* argv[]) {
     cout << "Font Full Path: " << config.finalFontPath << endl;
     cout << "Font Size (PNG Pixels): " << config.fontSize << endl;
     cout << "Font Size (PDF Points): " << config.pdfFontSize << endl; // Print PDF font size
+    // 打印 PDF 输出设置
+    cout << "Generate PDF Output: " << (config.generatePdfOutput ? "Enabled" : "Disabled") << " (Internal Setting)" << endl;
     cout << "--------------------------" << endl;
 
     // --- Load Font (once) ---
@@ -1081,7 +1092,11 @@ int main(int argc, char* argv[]) {
 
     // Keep console open
     cout << "\nPress Enter to exit..." << endl;
-    cin.get(); // Changed from cin.get() to wait for Enter after potential getline use
+    // 使用 cin.ignore() 清除可能存在的残留换行符
+    // cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    // 然后等待用户按 Enter
+    cin.get();
+
 
     return (failedCount > 0); // Return non-zero if any failures occurred
 }
