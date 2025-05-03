@@ -43,27 +43,35 @@ const set<string> SUPPORTED_EXTENSIONS = {
 };
 
 enum class ColorScheme {
-    // --- 原有方案 ---
+    //--- A ---
     AMBER_ON_BLACK,   // 琥珀色字体，黑色背景
+    //--- B ---
     BLACK_ON_YELLOW,// 黑色字体，黄色背景
     BLACK_ON_CYAN,// 黑色字体，青色背景
-    COLOR_ON_WHITE,//白色背景，彩色字体
-    COLOR_ON_BLACK,
-    CYAN_ON_BLACK,// 青色前景，黑色背景
-    GRAY_ON_BLACK,
-    GREEN_ON_BLACK,
-    MAGENTA_ON_BLACK,
-    PURPLE_ON_BLACK,
-    SEPIA,// 深褐色调 (使用固定颜色，模拟旧照片)
-    SOLARIZED_DARK,
-    SOLARIZED_LIGHT,
-    WHITE_ON_BLACK,
-    WHITE_ON_BLUE,// 白色前景，蓝色背景
-    WHITE_ON_DARK_RED,
-    YELLOW_ON_BLACK, // 黄色前景，黑色背景
+    //--- C ---
+    COLOR_ON_WHITE,//彩色字体，白色背景，
+    COLOR_ON_BLACK,//彩色字体，白色背景
+    CYAN_ON_BLACK,// 青色字体，黑色背景
+    //--- G ---
+    GRAY_ON_BLACK,// 灰色字体，黑色背景
+    GREEN_ON_BLACK,//绿色字体，黑色背景
+    //--- M ---
+    MAGENTA_ON_BLACK,//洋红字体，黑色背景
+    //--- P ---
+    PURPLE_ON_BLACK,//紫色字体，黑色背景
+    //--- S ---
+    SEPIA,// 深褐色调 (模拟旧照片)
+    SOLARIZED_DARK,//灰青字体，深蓝灰背景
+    SOLARIZED_LIGHT,//深灰字体，米白底背景
+    //--- W ---
+    WHITE_ON_BLACK,//白色字体，黑色背景
+    WHITE_ON_BLUE,// 白色字体，蓝色背景
+    WHITE_ON_DARK_RED,//白色字体，深红背景
+    //--- Y ---
+    YELLOW_ON_BLACK, // 黄色字体，黑色背景
 
     //--- default---
-    BLACK_ON_WHITE, 
+    BLACK_ON_WHITE, //黑色字体，白色背景
 
     
 };
@@ -73,7 +81,7 @@ struct CharColorInfo {
     unsigned char color[3]; // 来自原始图像的 R, G, B 值
 };
 
-// --- 新增：配置结构体 ---
+// --- 配置 ---
 struct Config {
     int targetWidth = 1024;
     double charAspectRatioCorrection = 2.0;
@@ -90,34 +98,34 @@ struct Config {
     // 对于文件夹输入，这是在输入文件夹旁边创建的主输出目录的后缀
     string batchOutputSubDirSuffix = "_ascii_batch_output";
 
-    // --- 步骤 4 (可选): 选择要默认生成的颜色搭配 ---
+    // --- 选择要默认生成的颜色搭配 ---
     vector<ColorScheme> schemesToGenerate = {
         //--- A ---
-        ColorScheme::AMBER_ON_BLACK, 
+        //ColorScheme::AMBER_ON_BLACK,//琥珀色字体，黑色背景
         //--- B ---   
-        ColorScheme::BLACK_ON_YELLOW,  
-        ColorScheme::BLACK_ON_CYAN,
+        ColorScheme::BLACK_ON_YELLOW,//黑色字体，黄色背景
+        ColorScheme::BLACK_ON_CYAN,//黑色字体，青色背景
         //--- C ---
-        ColorScheme::COLOR_ON_WHITE,   
-        ColorScheme::COLOR_ON_BLACK,   
-        ColorScheme::CYAN_ON_BLACK,
+        ColorScheme::COLOR_ON_WHITE,//彩色字体，白色背景，
+        ColorScheme::COLOR_ON_BLACK, //彩色字体，黑色背景，
+        ColorScheme::CYAN_ON_BLACK,//青色字体，黑色背景
         //--- G ---   
-        ColorScheme::GRAY_ON_BLACK,
-        ColorScheme::GREEN_ON_BLACK,   
+        ColorScheme::GRAY_ON_BLACK,//灰色字体，黑色背景
+        ColorScheme::GREEN_ON_BLACK,//绿色字体，黑色背景 
         //--- M ---
-        ColorScheme::MAGENTA_ON_BLACK,
+        ColorScheme::MAGENTA_ON_BLACK,//杨红字体，黑色背景
         //--- P ---
-        ColorScheme::PURPLE_ON_BLACK,
+        ColorScheme::PURPLE_ON_BLACK,//紫色字体，黑色背景
         //--- S ---
-        ColorScheme::SEPIA,             
-        ColorScheme::SOLARIZED_DARK,
-        ColorScheme::SOLARIZED_LIGHT,
+        ColorScheme::SEPIA,// 深褐色调 (模拟旧照片)         
+        ColorScheme::SOLARIZED_DARK,//灰青字体，深蓝灰背景
+        ColorScheme::SOLARIZED_LIGHT,//深灰字体，米白底背景
         //--- W ---
-        ColorScheme::WHITE_ON_BLACK,   
-        ColorScheme::WHITE_ON_BLUE,    
-        ColorScheme::WHITE_ON_DARK_RED,
+        ColorScheme::WHITE_ON_BLACK, //白色字体，黑色背景 
+        ColorScheme::WHITE_ON_BLUE, //白色字体，蓝色背景
+        ColorScheme::WHITE_ON_DARK_RED,//白色字体，深红背景
         //--- Y ---
-        ColorScheme::YELLOW_ON_BLACK,  
+        ColorScheme::YELLOW_ON_BLACK,//黄色字体，黑色背景
     };
 };
 
