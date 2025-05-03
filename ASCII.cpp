@@ -1,3 +1,4 @@
+//gdb Launch ASCII.exe(Hascii)
 #include <iostream>
 #include <string>
 #include <vector>
@@ -765,7 +766,11 @@ bool processImageFile(const path& imagePath,
     cout << "==================================================" << endl;
 
     // --- Setup output subdirectory ---
-    path outputSubDirPath = setupImageOutputSubdirectory(baseOutputDir, imagePath, config.imageOutputSubDirSuffix);
+    // 创建包含 targetWidth 的新后缀
+    string imageSubDirSuffixWithWidth = "_" + std::to_string(config.targetWidth) + config.imageOutputSubDirSuffix;
+    // 使用新的后缀调用 setupImageOutputSubdirectory
+    path outputSubDirPath = setupImageOutputSubdirectory(baseOutputDir, imagePath, imageSubDirSuffixWithWidth);
+    
     if (outputSubDirPath.empty()) {
         cerr << "Skipping image due to output directory setup failure." << endl;
         return false;
@@ -1022,9 +1027,11 @@ int main(int argc, char* argv[]) {
         } else if (filesystem::is_directory(inputPath)) {
             // --- Process Directory ---
             cout << "\nInput is a directory. Processing image files inside..." << endl;
-
-            // Create main output directory (next to input directory)
-            path batchBaseOutputDir = inputPath.parent_path() / (inputPath.filename().string() + config.batchOutputSubDirSuffix);
+            
+           // 构建包含 targetWidth 的批处理目录名
+           string batchDirName = inputPath.filename().string() + "_" + std::to_string(config.targetWidth) + config.batchOutputSubDirSuffix;
+           // 使用新的目录名创建路径
+           path batchBaseOutputDir = inputPath.parent_path() / batchDirName;
             try {
                  if(filesystem::create_directories(batchBaseOutputDir)) {
                      cout << "Created main batch output directory: " << batchBaseOutputDir.string() << endl;
