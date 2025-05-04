@@ -6,3 +6,8 @@
 可以输出png图片
 可以输出pdf,但是如果设置字符宽度过大，会导致超出pdf最大的限制，导致pdf无法创建
 
+# 图片示例
+![4](https://github.com/user-attachments/assets/72ce2168-044b-41ff-9d16-304f636d8115)
+![3_BlackOnWhite](https://github.com/user-attachments/assets/f4f686de-20de-47ef-a9ba-e2b22265f167)
+
+
