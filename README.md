@@ -8,6 +8,7 @@
 
 # 图片示例
 ![4](https://github.com/user-attachments/assets/72ce2168-044b-41ff-9d16-304f636d8115)
-![3_BlackOnWhite](https://github.com/user-attachments/assets/f4f686de-20de-47ef-a9ba-e2b22265f167)
+![4_BlackOnWhite](https://github.com/user-attachments/assets/17ac514f-c82b-4ad1-beb1-5325d8ee940b)
+
 
 
