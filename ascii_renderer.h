@@ -6,15 +6,20 @@
 #include <filesystem>
 
 // Renders the ASCII data to a PNG image file.
-// Takes the ASCII data, output path, font path, font size, and color scheme.
-// Returns true on success, false on failure.
 bool renderAsciiToImage(
     const vector<vector<CharColorInfo>>& asciiData,
     const std::filesystem::path& outputPath,
     const std::string& fontPath, // Use the resolved finalFontPath from Config
-    float fontSize,
+    float fontSize,              // Font size for PNG from Config
     ColorScheme scheme
 );
 
+// Renders the ASCII data to an HTML file.
+bool renderAsciiToHtml(
+    const vector<vector<CharColorInfo>>& asciiData,
+    const std::filesystem::path& outputPath,
+    const Config& config,     // Pass full config for font name, HTML font size, etc.
+    ColorScheme scheme        // The specific color scheme to apply
+);
 
 #endif // ASCII_RENDERER_H
