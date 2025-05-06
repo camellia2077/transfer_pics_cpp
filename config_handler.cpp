@@ -70,7 +70,7 @@ static int iniHandler(void* user, const char* section, const char* name, const c
             else if (lower_val == "false" || lower_val == "no" || lower_val == "0") pconfig->enableTiledRendering = false;
             else {
                 std::cerr << "Warning: Invalid boolean for 'enableTiledRendering': \"" << value << "\". Using default." << std::endl;
-                return 0; // Indicate parsing error for this value
+                return 0;
             }
             LOG_LOADED(enableTiledRendering, pconfig->enableTiledRendering);
         } else if (strcmp(name, "tileSize") == 0) {
@@ -90,17 +90,32 @@ static int iniHandler(void* user, const char* section, const char* name, const c
              pconfig->batchOutputSubDirSuffix = value;
              LOG_LOADED(batchOutputSubDirSuffix, pconfig->batchOutputSubDirSuffix);
         }
+        // HTML Specific Settings
+        else if (strcmp(name, "generateHtmlOutput") == 0) {
+            string lower_val = toLower(value);
+            if (lower_val == "true" || lower_val == "yes" || lower_val == "1") pconfig->generateHtmlOutput = true;
+            else if (lower_val == "false" || lower_val == "no" || lower_val == "0") pconfig->generateHtmlOutput = false;
+            else {
+                std::cerr << "Warning: Invalid boolean for 'generateHtmlOutput': \"" << value << "\". Using default." << std::endl;
+            }
+            LOG_LOADED(generateHtmlOutput, pconfig->generateHtmlOutput);
+        } else if (strcmp(name, "htmlFontSizePt") == 0) {
+            pconfig->htmlFontSizePt = std::stof(value);
+            LOG_LOADED(htmlFontSizePt, pconfig->htmlFontSizePt);
+        } else if (strcmp(name, "outputHtmlExtension") == 0) {
+             pconfig->outputHtmlExtension = value;
+             LOG_LOADED(outputHtmlExtension, pconfig->outputHtmlExtension);
+        }
         // --- Handle colorSchemes ---
         else if (strcmp(name, "colorSchemes") == 0) {
              if (!value.empty()) {
-                 pconfig->schemesToGenerate.clear(); // Clear defaults only if key exists and has value
+                 pconfig->schemesToGenerate.clear(); 
                  std::stringstream ss(value);
                  std::string schemeNameStr;
                  int loadedCount = 0;
-                 string loadedSchemeNamesStr; // For logging
+                 string loadedSchemeNamesStr;
 
                  while (std::getline(ss, schemeNameStr, ',')) {
-                     // Trim whitespace
                      size_t first = schemeNameStr.find_first_not_of(" \t\n\r\f\v");
                      if (string::npos == first) continue;
                      size_t last = schemeNameStr.find_last_not_of(" \t\n\r\f\v");
@@ -108,12 +123,12 @@ static int iniHandler(void* user, const char* section, const char* name, const c
 
                      if (!schemeNameStr.empty()) {
                          std::string lowerSchemeName = toLower(schemeNameStr);
-                         const auto& map = getColorSchemeMap(); // Get reference to the map
+                         const auto& map = getColorSchemeMap(); 
                          auto it = map.find(lowerSchemeName);
                          if (it != map.end()) {
                              pconfig->schemesToGenerate.push_back(it->second);
                              if (loadedCount > 0) loadedSchemeNamesStr += ", ";
-                             loadedSchemeNamesStr += schemeNameStr; // Log original case
+                             loadedSchemeNamesStr += schemeNameStr; 
                              loadedCount++;
                          } else {
                              std::cerr << "Warning: Unknown color scheme name in config: '" << schemeNameStr << "'. Ignoring." << std::endl;
@@ -125,64 +140,53 @@ static int iniHandler(void* user, const char* section, const char* name, const c
                       std::cout << "  -> Loaded colorSchemes = " << loadedSchemeNamesStr << std::endl;
                  } else {
                       std::cerr << "Warning: No valid color schemes found for 'colorSchemes' key. Reverting to defaults." << std::endl;
-                      // Revert to default if key exists but value is empty or has no valid schemes
                       pconfig->schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
                       std::cout << "  -> Reverted to default schemes." << std::endl;
                  }
              } else {
                  std::cerr << "Warning: Empty value for 'colorSchemes' in config. Using default schemes." << std::endl;
-                 // Keep the hardcoded defaults if the value is empty string
              }
          }
-        // --- End Handle colorSchemes ---
         else {
-             // Optional: Log unknown keys if desired
-             // std::cout << "  -> Ignoring unknown key: " << name << std::endl;
-             return 1; // Indicate success (key processed or ignored), but maybe log it?
+             return 1; 
         }
 
     } catch (const std::invalid_argument& e) {
         std::cerr << "Warning: Invalid data format for key '" << name << "' in config.ini. Value: \"" << value << "\". Error: " << e.what() << std::endl;
-        return 0; // Return 0 to indicate error during value parsing
+        return 0; 
     } catch (const std::out_of_range& e) {
         std::cerr << "Warning: Value out of range for key '" << name << "' in config.ini. Value: \"" << value << "\". Error: " << e.what() << std::endl;
-        return 0; // Return 0 to indicate error during value parsing
+        return 0; 
     }
-    return 1; // Return 1 on successful handling of the key-value pair
+    return 1; 
 }
 
 // --- Public Functions ---
 
 bool loadConfiguration(const std::filesystem::path& configPath, Config& config) {
-    // Defaults are set in Config struct definition
-
     std::cout << "Info: Attempting to load configuration from '" << configPath.string() << "'..." << std::endl;
     int parseResult = ini_parse(configPath.string().c_str(), iniHandler, &config);
 
     if (parseResult < 0) {
         std::cout << "Info: Config file '" << configPath.string() << "' not found or cannot be opened. Using defaults." << std::endl;
-        // Defaults are already set, so return true
         return true;
     } else if (parseResult > 0) {
         std::cerr << "Warning: Error parsing config '" << configPath.string() << "' at line " << parseResult << "." << std::endl;
         std::cerr << "Warning: Check format/values. Settings loaded before error and defaults for others will be used." << std::endl;
-        // Check if schemes ended up empty due to error after clearing but before finishing
          if (config.schemesToGenerate.empty()) {
              std::cerr << "Warning: Reverting to default color schemes due to potential parsing issue." << std::endl;
              config.schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
          }
-        return false; // Indicate warning/error occurred during parsing
+        return false; 
     }
 
-    // parseResult == 0 means success
-    // Double-check schemes aren't empty after successful parsing (e.g., key existed but value was invalid/empty)
      if (config.schemesToGenerate.empty()) {
          std::cerr << "Warning: No color schemes were successfully loaded from config. Reverting to defaults." << std::endl;
          config.schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
      }
 
     std::cout << "Info: Configuration loaded/parsed successfully (or defaults used)." << std::endl;
-    return true; // Indicate overall success or use of defaults
+    return true; 
 }
 
 
@@ -211,13 +215,18 @@ bool writeConfigToFile(const Config& config, const std::filesystem::path& output
     configFile << "imageOutputSubDirSuffix = " << config.imageOutputSubDirSuffix << std::endl;
     configFile << "batchOutputSubDirSuffix = " << config.batchOutputSubDirSuffix << std::endl;
 
-    // Output color scheme list
+    // HTML Settings
+    configFile << "generateHtmlOutput = " << (config.generateHtmlOutput ? "true" : "false") << std::endl;
+    configFile << "htmlFontSizePt = " << std::fixed << std::setprecision(2) << config.htmlFontSizePt << " # Font size for HTML output in points" << std::endl;
+    configFile << "outputHtmlExtension = " << config.outputHtmlExtension << std::endl;
+
+
     configFile << "colorSchemes = ";
     if (config.schemesToGenerate.empty()) {
         configFile << "# (None specified or loaded)" << std::endl;
     } else {
         for (size_t i = 0; i < config.schemesToGenerate.size(); ++i) {
-            configFile << colorSchemeToString(config.schemesToGenerate[i]); // Use helper
+            configFile << colorSchemeToString(config.schemesToGenerate[i]); 
             if (i < config.schemesToGenerate.size() - 1) {
                 configFile << ", ";
             }
@@ -226,7 +235,7 @@ bool writeConfigToFile(const Config& config, const std::filesystem::path& output
     }
 
     configFile.close();
-    if (!configFile) { // Check for errors during write/close
+    if (!configFile) { 
          std::cerr << "Error: Failed to write all data or close the config output file: " << outputFilePath.string() << std::endl;
          return false;
     }
