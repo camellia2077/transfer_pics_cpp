@@ -6,8 +6,10 @@
 在MSYS2 MinGW64中
 1安装libharu库，用于生成 PDF 文件
 pacman -S mingw-w64-x86_64-libharu
+
 2安装安装 inih，用于配置文件
 pacman -S mingw-w64-x86_64-libinih
+
 3进行编译
 g++ ascii_to_image.cpp -o ascii_to_image -std=c++23 -lstdc++fs -linih -O3 -flto -pthread
 g++ ascii_to_pdf.cpp -o ascii_to_pdf -std=c++23 -lstdc++fs -linih -lhpdf -O3 -flto -pthread
