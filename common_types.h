@@ -45,9 +45,9 @@ struct Config {
     int targetWidth = 1024;
     double charAspectRatioCorrection = 2.0;
     string fontFilename = "Consolas.ttf"; // Relative name from config
-    float fontSize = 15.0f;
-    string finalFontPath = "";          // Resolved absolute/relative path used
-    bool enableTiledRendering = false; // Note: Tiling logic wasn't in the original rendering part, might need adding if required
+    float fontSize = 15.0f;              // Font size for PNG
+    string finalFontPath = "";           // Resolved absolute/relative path used
+    bool enableTiledRendering = false;   // Note: Tiling logic wasn't in the original rendering part
     int tileSize = 512;
     string outputPngExtension = ".png";
     string imageOutputSubDirSuffix = "_ascii_output";
@@ -57,6 +57,12 @@ struct Config {
         ColorScheme::BLACK_ON_WHITE,
         ColorScheme::COLOR_ON_WHITE,
     };
+
+    // HTML Output Settings
+    bool generateHtmlOutput = true;
+    float htmlFontSizePt = 8.0f;         // Font size for HTML output in points
+    string outputHtmlExtension = ".html";
+    // Consider adding htmlFontName if different from PNG's fontFilename's base name
 };
 
 // --- Helper Functions (moved here for common use) ---
