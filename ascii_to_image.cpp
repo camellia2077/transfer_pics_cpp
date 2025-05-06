@@ -10,12 +10,14 @@
 #include <system_error> // For filesystem errors
 #include <chrono>       // For timing
 #include <iomanip>      // For setprecision
-#include <sstream>      // For stringstream
+#include <sstream>      // For stringstream <--- Added
 #include <cctype>       // For tolower
 #include <set>          // For supported extensions
 #include <future>       // For std::async, std::future
 #include <thread>       // For std::thread::hardware_concurrency
 #include <functional>   // For std::cref
+#include <unordered_map>// For schemeNameMap <--- Added
+
 // ADD THIS BLOCK FOR WINDOWS API
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -33,13 +35,14 @@
 #include "stb_truetype.h" // Needs to be in your include path or project
 
 
-#include <ini.h> 
+#include <ini.h>
 
 using namespace std;
 using std::filesystem::path;
 using namespace std::chrono;
 
-// --- Common Constants, Types, and Structures (Ideally in a shared header) ---
+// --- Common Constants, Types, and Structures ---
+// ... (ASCII_CHARS, NUM_ASCII_CHARS, OUTPUT_CHANNELS, SUPPORTED_EXTENSIONS remain the same) ...
 const string ASCII_CHARS = "@%#*+=-:. ";
 const int NUM_ASCII_CHARS = static_cast<int>(ASCII_CHARS.length());
 const int OUTPUT_CHANNELS = 3; // Output PNG as RGB
@@ -48,6 +51,7 @@ const set<string> SUPPORTED_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif"
 };
 
+
 enum class ColorScheme {
     AMBER_ON_BLACK, BLACK_ON_YELLOW, BLACK_ON_CYAN, COLOR_ON_WHITE,
     COLOR_ON_BLACK, CYAN_ON_BLACK, GRAY_ON_BLACK, GREEN_ON_BLACK,
@@ -55,6 +59,62 @@ enum class ColorScheme {
     SOLARIZED_LIGHT, WHITE_ON_BLACK, WHITE_ON_BLUE, WHITE_ON_DARK_RED,
     YELLOW_ON_BLACK, BLACK_ON_WHITE,
 };
+
+// Helper function to convert ColorScheme enum to string (for printing)
+string colorSchemeToString(ColorScheme scheme) {
+    switch (scheme) {
+        case ColorScheme::AMBER_ON_BLACK: return "AmberOnBlack";
+        case ColorScheme::BLACK_ON_YELLOW: return "BlackOnYellow";
+        case ColorScheme::BLACK_ON_CYAN: return "BlackOnCyan";
+        case ColorScheme::COLOR_ON_WHITE: return "ColorOnWhite";
+        case ColorScheme::COLOR_ON_BLACK: return "ColorOnBlack";
+        case ColorScheme::CYAN_ON_BLACK: return "CyanOnBlack";
+        case ColorScheme::GRAY_ON_BLACK: return "GrayOnBlack";
+        case ColorScheme::GREEN_ON_BLACK: return "GreenOnBlack";
+        case ColorScheme::MAGENTA_ON_BLACK: return "MagentaOnBlack";
+        case ColorScheme::PURPLE_ON_BLACK: return "PurpleOnBlack";
+        case ColorScheme::SEPIA: return "Sepia";
+        case ColorScheme::SOLARIZED_DARK: return "SolarizedDark";
+        case ColorScheme::SOLARIZED_LIGHT: return "SolarizedLight";
+        case ColorScheme::WHITE_ON_BLACK: return "WhiteOnBlack";
+        case ColorScheme::WHITE_ON_BLUE: return "WhiteOnBlue";
+        case ColorScheme::WHITE_ON_DARK_RED: return "WhiteOnDarkRed";
+        case ColorScheme::YELLOW_ON_BLACK: return "YellowOnBlack";
+        case ColorScheme::BLACK_ON_WHITE: return "BlackOnWhite";
+        default: return "UnknownScheme";
+    }
+}
+
+// Helper to convert string to lowercase
+std::string toLower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return s;
+}
+
+// Map from lowercase string name to ColorScheme enum
+// Defined globally (or static) so iniHandler can access it
+const std::unordered_map<std::string, ColorScheme> schemeNameMap = {
+    {"amberonblack", ColorScheme::AMBER_ON_BLACK},
+    {"blackonyellow", ColorScheme::BLACK_ON_YELLOW},
+    {"blackoncyan", ColorScheme::BLACK_ON_CYAN},
+    {"coloronwhite", ColorScheme::COLOR_ON_WHITE},
+    {"coloronblack", ColorScheme::COLOR_ON_BLACK},
+    {"cyanonblack", ColorScheme::CYAN_ON_BLACK},
+    {"grayonblack", ColorScheme::GRAY_ON_BLACK},
+    {"greenonblack", ColorScheme::GREEN_ON_BLACK},
+    {"magentaonblack", ColorScheme::MAGENTA_ON_BLACK},
+    {"purpleonblack", ColorScheme::PURPLE_ON_BLACK},
+    {"sepia", ColorScheme::SEPIA},
+    {"solarizeddark", ColorScheme::SOLARIZED_DARK},
+    {"solarizedlight", ColorScheme::SOLARIZED_LIGHT},
+    {"whiteonblack", ColorScheme::WHITE_ON_BLACK},
+    {"whiteonblue", ColorScheme::WHITE_ON_BLUE},
+    {"whiteondarkred", ColorScheme::WHITE_ON_DARK_RED},
+    {"yellowonblack", ColorScheme::YELLOW_ON_BLACK},
+    {"blackonwhite", ColorScheme::BLACK_ON_WHITE}
+};
+
 
 struct CharColorInfo {
     char character;
@@ -75,13 +135,15 @@ struct Config {
     // string outputPdfExtension = ".pdf"; // Not used
     string imageOutputSubDirSuffix = "_ascii_output";
     string batchOutputSubDirSuffix = "_ascii_batch_output";
+
+    // Default schemes - will be overridden by INI if colorSchemes key is found
     vector<ColorScheme> schemesToGenerate = {
         ColorScheme::BLACK_ON_WHITE,
         ColorScheme::COLOR_ON_WHITE,
     };
 };
 
-// --- Common INI Handler (Ideally in a shared .cpp, declared in shared header) ---
+// --- Common INI Handler ---
 static int iniHandler(void* user, const char* section, const char* name, const char* value_cstr) {
     Config* pconfig = static_cast<Config*>(user);
     string value(value_cstr);
@@ -106,12 +168,10 @@ static int iniHandler(void* user, const char* section, const char* name, const c
             } else {
                 cerr << "Warning: Empty value for 'fontFilename'. Using default." << endl;
             }
-        } else if (strcmp(name, "fontSize") == 0) { // PNG font size
+        } else if (strcmp(name, "fontSize") == 0) {
             pconfig->fontSize = stof(value);
             LOG_LOADED(fontSize (PNG), pconfig->fontSize);
-        }
-        // pdfFontSize would be ignored or handled gracefully if present in INI
-        else if (strcmp(name, "enableTiledRendering") == 0) {
+        } else if (strcmp(name, "enableTiledRendering") == 0) {
             string lower_val = value;
             transform(lower_val.begin(), lower_val.end(), lower_val.begin(), ::tolower);
             if (lower_val == "true" || lower_val == "yes" || lower_val == "1") pconfig->enableTiledRendering = true;
@@ -129,17 +189,71 @@ static int iniHandler(void* user, const char* section, const char* name, const c
             }
             LOG_LOADED(tileSize, pconfig->tileSize);
         }
+        // --- NEW: Handle colorSchemes ---
+        else if (strcmp(name, "colorSchemes") == 0) {
+            if (!value.empty()) {
+                pconfig->schemesToGenerate.clear(); // Clear defaults first
+                std::stringstream ss(value);
+                std::string schemeNameStr;
+                int loadedCount = 0;
+                string loadedSchemeNamesStr; // For logging
+
+                while (std::getline(ss, schemeNameStr, ',')) { // Split by comma
+                    // Trim whitespace from schemeNameStr
+                    size_t first = schemeNameStr.find_first_not_of(" \t\n\r\f\v");
+                    if (string::npos == first) continue; // Skip empty segments
+                    size_t last = schemeNameStr.find_last_not_of(" \t\n\r\f\v");
+                    schemeNameStr = schemeNameStr.substr(first, (last - first + 1));
+
+                    if (!schemeNameStr.empty()) {
+                        std::string lowerSchemeName = toLower(schemeNameStr);
+                        auto it = schemeNameMap.find(lowerSchemeName);
+                        if (it != schemeNameMap.end()) {
+                            pconfig->schemesToGenerate.push_back(it->second);
+                            if (loadedCount > 0) loadedSchemeNamesStr += ", ";
+                            loadedSchemeNamesStr += schemeNameStr; // Log original case name
+                            loadedCount++;
+                        } else {
+                            cerr << "Warning: Unknown color scheme name in config: '" << schemeNameStr << "'. Ignoring." << endl;
+                        }
+                    }
+                }
+
+                if (loadedCount > 0) {
+                     cout << "  -> Loaded colorSchemes = " << loadedSchemeNamesStr << endl;
+                } else {
+                     // If the INI string was present but contained no valid schemes, use defaults.
+                     cerr << "Warning: No valid color schemes found for 'colorSchemes' key. Using defaults." << endl;
+                     // Re-add defaults explicitly or just don't clear them initially if key exists but value is empty/invalid.
+                     // Let's stick to the original defaults if parsing fails or yields nothing.
+                     // So, we only clear IF we successfully load at least one.
+                     // If loadedCount is 0 here, schemesToGenerate might be empty, revert to default.
+                     if (pconfig->schemesToGenerate.empty()) {
+                         pconfig->schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
+                         cout << "  -> Reverted to default schemes." << endl;
+                     }
+                }
+            } else {
+                cerr << "Warning: Empty value for 'colorSchemes' in config. Using default schemes." << endl;
+                // Keep the hardcoded defaults if the value is empty
+            }
+        }
+        // --- End Handle colorSchemes ---
+
     } catch (const std::invalid_argument& e) {
-        cerr << "Warning: Invalid data for key '" << name << "': \"" << value << "\". Error: " << e.what() << endl;
-        return 0;
+        cerr << "Warning: Invalid data format for key '" << name << "' in config.ini. Value: \"" << value << "\". Error: " << e.what() << endl;
+        return 0; // Return 0 to indicate error during value parsing
     } catch (const std::out_of_range& e) {
-        cerr << "Warning: Value out of range for key '" << name << "': \"" << value << "\". Error: " << e.what() << endl;
-        return 0;
+        cerr << "Warning: Value out of range for key '" << name << "' in config.ini. Value: \"" << value << "\". Error: " << e.what() << endl;
+        return 0; // Return 0 to indicate error during value parsing
     }
-    return 1;
+    return 1; // Return 1 on successful handling of the key-value pair
 }
 
-// --- Common Utility Functions (Ideally in shared .h/.cpp) ---
+
+// --- Common Utility Functions ---
+// ... (trim, isImageFile, read_file, getSchemeSuffix, loadConfiguration, getUserInputPath, setupImageOutputSubdirectory, loadImage, generateAsciiData, loadFontInfo, calculateOutputDimensions, setSchemeColors remain the same) ...
+// NOTE: getSchemeSuffix is still useful for generating filenames based on the enum
 string trim(const string& str) {
     size_t first = str.find_first_not_of(" \t\n\r\f\v");
     if (string::npos == first) return str;
@@ -195,15 +309,34 @@ string getSchemeSuffix(ColorScheme scheme) {
 }
 
 bool loadConfiguration(const path& configPath, Config& config) {
+    // Make sure the default schemes are set before parsing, in case the key is missing
+    // or parsing fails partially. The handler will clear/overwrite if the key is found.
+    config.schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
+
     cout << "Info: Attempting to load configuration from '" << configPath.string() << "'..." << endl;
     int parseResult = ini_parse(configPath.string().c_str(), iniHandler, &config);
     if (parseResult < 0) {
         cout << "Info: Config file '" << configPath.string() << "' not found. Using defaults." << endl;
+        // Defaults are already set, so just return true
         return true;
     } else if (parseResult > 0) {
-        cerr << "Warning: Error parsing config '" << configPath.string() << "' at line " << parseResult << ". Using defaults for failed settings." << endl;
-        return false;
+        cerr << "Warning: Error parsing config '" << configPath.string() << "' at line " << parseResult << "." << endl;
+        cerr << "Warning: Check format/values. Settings before error and defaults for others will be used." << endl;
+         // Even with parsing errors, we might have loaded *some* values.
+         // Check if schemes ended up empty due to error after clearing
+         if (config.schemesToGenerate.empty()) {
+             cerr << "Warning: Reverting to default color schemes due to parsing issue." << endl;
+             config.schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
+         }
+        return false; // Indicate warning/error occurred
     }
+
+    // If parseResult is 0, loading was successful. Check if INI loading left schemes empty.
+     if (config.schemesToGenerate.empty()) {
+         cerr << "Warning: No color schemes specified or loaded from config. Using defaults." << endl;
+         config.schemesToGenerate = { ColorScheme::BLACK_ON_WHITE, ColorScheme::COLOR_ON_WHITE };
+     }
+
     cout << "Info: Configuration loaded successfully." << endl;
     return true;
 }
@@ -271,6 +404,7 @@ vector<vector<CharColorInfo>> generateAsciiData(const unsigned char* imgData, in
             int asciiIndex = static_cast<int>(std::floor((gray / 255.0f) * (NUM_ASCII_CHARS -1) )); // ensure index is valid
             asciiIndex = max(0, min(asciiIndex, NUM_ASCII_CHARS - 1));
 
+
             CharColorInfo info;
             info.character = ASCII_CHARS[static_cast<size_t>(asciiIndex)];
             info.color[0] = r; info.color[1] = g; info.color[2] = b;
@@ -320,17 +454,17 @@ void calculateOutputDimensions(const stbtt_fontinfo& fontInfo, float pngFontSize
 
 void setSchemeColors(ColorScheme scheme, unsigned char bgColor[3], unsigned char fgColor[3]) {
     // ... (same as original setSchemeColors function) ...
-    switch (scheme) {
+     switch (scheme) {
         case ColorScheme::AMBER_ON_BLACK:
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; fgColor[0] = 0xFF; fgColor[1] = 0xBF; fgColor[2] = 0x00; break;
         case ColorScheme::BLACK_ON_YELLOW:
             bgColor[0] = 0xFF; bgColor[1] = 0xFF; bgColor[2] = 0xAA; fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; break;
         case ColorScheme::BLACK_ON_CYAN:
             bgColor[0] = 0xAA; bgColor[1] = 0xFF; bgColor[2] = 0xFF; fgColor[0] = 0x00; fgColor[1] = 0x00; fgColor[2] = 0x00; break;
-        case ColorScheme::COLOR_ON_WHITE: // BG is light gray, FG is from image
-            bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; fgColor[0] = 0; fgColor[1] = 0; fgColor[2] = 0; break; // FG not used directly
-        case ColorScheme::COLOR_ON_BLACK: // BG is dark gray, FG is from image
-            bgColor[0] = 0x36; bgColor[1] = 0x36; bgColor[2] = 0x36; fgColor[0] = 0; fgColor[1] = 0; fgColor[2] = 0; break; // FG not used directly
+        case ColorScheme::COLOR_ON_WHITE:
+            bgColor[0] = 0xC8; bgColor[1] = 0xC8; bgColor[2] = 0xC8; fgColor[0] = 0; fgColor[1] = 0; fgColor[2] = 0; break;
+        case ColorScheme::COLOR_ON_BLACK:
+            bgColor[0] = 0x36; bgColor[1] = 0x36; bgColor[2] = 0x36; fgColor[0] = 0; fgColor[1] = 0; fgColor[2] = 0; break;
         case ColorScheme::CYAN_ON_BLACK:
             bgColor[0] = 0x00; bgColor[1] = 0x00; bgColor[2] = 0x00; fgColor[0] = 0x00; fgColor[1] = 0xFF; fgColor[2] = 0xFF; break;
         case ColorScheme::GRAY_ON_BLACK:
@@ -465,12 +599,12 @@ bool processImageFileForPng(const path& imagePath,
 
     auto proc_start = high_resolution_clock::now();
     cout << "Generating ASCII data..." << endl;
-    int targetHeight = static_cast<int>(std::round(static_cast<double>(height * config.targetWidth) / (width * config.charAspectRatioCorrection)));
-    targetHeight = max(1, targetHeight);
-    cout << "Calculated ASCII grid: " << config.targetWidth << "x" << targetHeight << endl;
+    int targetHeightNum = static_cast<int>(std::round(static_cast<double>(height * config.targetWidth) / (width * config.charAspectRatioCorrection)));
+    targetHeightNum = max(1, targetHeightNum);
+    cout << "Calculated ASCII grid: " << config.targetWidth << "x" << targetHeightNum << endl;
 
     vector<vector<CharColorInfo>> asciiResultData = generateAsciiData(
-        imgDataPtr.get(), width, height, config.targetWidth, targetHeight);
+        imgDataPtr.get(), width, height, config.targetWidth, targetHeightNum);
     if (asciiResultData.empty() || asciiResultData[0].empty()) {
         cerr << "Error: Failed to generate ASCII data for " << imagePath.filename().string() << ". Skipping." << endl;
         return false;
@@ -478,7 +612,7 @@ bool processImageFileForPng(const path& imagePath,
 
     int charWidthPx, lineHeightPx, outputImageWidthPx, outputImageHeightPx, ascentPx, descentPx, lineGapPx;
     float scaleForPng;
-    calculateOutputDimensions(fontInfo, config.fontSize, config.targetWidth, targetHeight,
+    calculateOutputDimensions(fontInfo, config.fontSize, config.targetWidth, targetHeightNum,
                               charWidthPx, lineHeightPx, outputImageWidthPx, outputImageHeightPx,
                               scaleForPng, ascentPx, descentPx, lineGapPx);
     if (outputImageWidthPx <= 0 || outputImageHeightPx <= 0) {
@@ -488,13 +622,20 @@ bool processImageFileForPng(const path& imagePath,
     cout << "Calculated PNG output: " << outputImageWidthPx << "x" << outputImageHeightPx << endl;
 
     bool allSchemesSuccessful = true;
+    // Use the schemes loaded into the config struct
+    if (config.schemesToGenerate.empty()) {
+         cerr << "Error: No color schemes configured to generate for " << imagePath.filename().string() << ". Skipping rendering." << endl;
+         return false; // Or maybe true if loading/ASCII gen was okay? Depends on desired behaviour. Let's say false.
+    }
+    cout << "Processing " << config.schemesToGenerate.size() << " configured color scheme(s)..." << endl; // Log how many schemes are being processed
+
     for (const auto& currentScheme : config.schemesToGenerate) {
-        string schemeSuffix = getSchemeSuffix(currentScheme);
+        string schemeSuffix = getSchemeSuffix(currentScheme); // Use existing function
         string baseNameForOutput = imagePath.stem().string() + schemeSuffix;
         string pngOutputFilename = baseNameForOutput + config.outputPngExtension;
         path finalPngOutputPath = outputSubDirPath / pngOutputFilename;
 
-        cout << "  Processing scheme: " << schemeSuffix.substr(1) << " -> PNG: " << finalPngOutputPath.filename().string() << endl;
+        cout << "  Processing scheme: " << colorSchemeToString(currentScheme) << " -> PNG: " << finalPngOutputPath.filename().string() << endl; // Use helper to print name
 
         unsigned char bgColor[3], fgColor[3];
         setSchemeColors(currentScheme, bgColor, fgColor);
@@ -507,9 +648,9 @@ bool processImageFileForPng(const path& imagePath,
             }
             outputImageData.resize(required_size);
         } catch (const std::exception& e) {
-            cerr << "Error: Allocating PNG buffer for " << schemeSuffix.substr(1) << ": " << e.what() << ". Skipping." << endl;
+            cerr << "Error: Allocating PNG buffer for " << colorSchemeToString(currentScheme) << ": " << e.what() << ". Skipping." << endl;
             allSchemesSuccessful = false;
-            continue;
+            continue; // Skip to next scheme
         }
 
         renderAsciiArtToImage(outputImageData, asciiResultData, fontInfo, currentScheme,
@@ -517,7 +658,7 @@ bool processImageFileForPng(const path& imagePath,
                               ascentPx, scaleForPng, lineHeightPx);
 
         if (!saveImagePng(finalPngOutputPath, outputImageWidthPx, outputImageHeightPx, OUTPUT_CHANNELS, outputImageData)) {
-            cerr << "  Error: Failed to save PNG for " << schemeSuffix.substr(1) << "." << endl;
+            cerr << "  Error: Failed to save PNG for " << colorSchemeToString(currentScheme) << "." << endl;
             allSchemesSuccessful = false;
         }
     }
@@ -530,41 +671,94 @@ bool processImageFileForPng(const path& imagePath,
 
 int main(int argc, char* argv[]) {
     cout << "--- ASCII Art to IMAGE (PNG) Generator ---" << endl;
-    Config config;
+    Config config; // Initialize with defaults, including default schemes
     const string configFilename = "config.ini";
 
     path exePath;
     try {
-        if (argc > 0 && argv[0] != nullptr && filesystem::exists(argv[0])) {
-            exePath = filesystem::canonical(argv[0]);
-        } else {
-            #ifdef _WIN32
-                char pathBuf[MAX_PATH];
-                GetModuleFileNameA(NULL, pathBuf, MAX_PATH);
-                exePath = pathBuf;
-            #else
-                exePath = filesystem::current_path() / "ascii_to_image"; // Fallback
-            #endif
-        }
+         if (argc > 0 && argv[0] != nullptr && !string(argv[0]).empty() && filesystem::exists(argv[0])) {
+             std::error_code ec;
+             path tempPath = filesystem::canonical(argv[0], ec);
+             if (!ec) {
+                 exePath = tempPath;
+             } else {
+                 path currentP = filesystem::current_path();
+                 tempPath = currentP / argv[0];
+                  if (filesystem::exists(tempPath)) {
+                     exePath = tempPath;
+                 } else {
+                     #ifdef _WIN32
+                         char pathBuf[MAX_PATH];
+                         if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH) != 0) {
+                             exePath = pathBuf;
+                         } else {
+                             cerr << "Warning: GetModuleFileNameA failed. Error: " << GetLastError() << ". Using fallback." << endl;
+                             exePath = currentP / "ascii_to_image_fallback.exe";
+                         }
+                     #else
+                         exePath = currentP / "ascii_to_image_fallback";
+                     #endif
+                 }
+             }
+         } else {
+             #ifdef _WIN32
+                 char pathBuf[MAX_PATH];
+                 if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH) != 0) {
+                      exePath = pathBuf;
+                 } else {
+                     cerr << "Warning: GetModuleFileNameA failed. Error: " << GetLastError() << ". Using fallback." << endl;
+                     exePath = filesystem::current_path() / "ascii_to_image_fallback.exe";
+                 }
+             #else
+                 exePath = filesystem::current_path() / "ascii_to_image";
+             #endif
+         }
+    } catch (const filesystem::filesystem_error& fs_err) {
+        cerr << "Warning: Filesystem error resolving executable path: " << fs_err.what() << ". Using current_path fallback." << endl;
+        string exeName = (argc > 0 && argv[0] != nullptr && !string(argv[0]).empty()) ? filesystem::path(argv[0]).filename().string() : "ascii_to_image";
+        exePath = filesystem::current_path() / exeName;
     } catch (const std::exception& e) {
-        cerr << "Warning: Error resolving executable path: " << e.what() << ". Using current dir." << endl;
-        exePath = filesystem::current_path() / (argc > 0 && argv[0] ? filesystem::path(argv[0]).filename() : "ascii_to_image");
+        cerr << "Warning: Error resolving executable path: " << e.what() << ". Using current_path fallback." << endl;
+        string exeName = (argc > 0 && argv[0] != nullptr && !string(argv[0]).empty()) ? filesystem::path(argv[0]).filename().string() : "ascii_to_image";
+        exePath = filesystem::current_path() / exeName;
     }
+
     path exeDir = exePath.parent_path();
     path configPathObj = exeDir / configFilename;
 
+    // Load configuration - This will potentially override config.schemesToGenerate
     loadConfiguration(configPathObj, config);
+
     config.finalFontPath = (exeDir / config.fontFilename).string();
-    if (!filesystem::exists(config.finalFontPath)) {
-        cerr << "Error: Font file '" << config.finalFontPath << "' not found." << endl;
-        return 1;
+     if (!filesystem::exists(config.finalFontPath)) {
+        path currentDirFontPath = filesystem::current_path() / config.fontFilename;
+        if (filesystem::exists(currentDirFontPath)) {
+            config.finalFontPath = currentDirFontPath.string();
+            cout << "Info: Font found in current working directory: " << config.finalFontPath << endl;
+        } else {
+            cerr << "Error: Font file '" << config.fontFilename << "' not found near executable (" << exeDir.string() << ") or in current directory (" << filesystem::current_path().string() <<")." << endl;
+            cerr << "Please ensure '" << config.fontFilename << "' is correctly placed or provide a full path in " << configFilename << "." << endl;
+            return 1;
+        }
     }
+
 
     cout << "\n--- PNG Output Configuration ---" << endl;
     cout << "Target Width (Chars): " << config.targetWidth << endl;
     cout << "Aspect Correction: " << config.charAspectRatioCorrection << endl;
     cout << "Font: " << config.finalFontPath << " (Size for PNG: " << config.fontSize << "px)" << endl;
     cout << "Tiled Rendering: " << (config.enableTiledRendering ? "true" : "false") << " (Tile Size: " << config.tileSize << ")" << endl;
+
+    // Print the final list of schemes to be generated
+    cout << "Color Schemes to Generate: ";
+    if (config.schemesToGenerate.empty()) {
+        cout << " (None - Check config or defaults)";
+    } else {
+        for (size_t i = 0; i < config.schemesToGenerate.size(); ++i) {
+            cout << colorSchemeToString(config.schemesToGenerate[i]) << (i == config.schemesToGenerate.size() - 1 ? "" : ", ");
+        }
+    }
+    cout << endl;
     cout << "-----------------------------" << endl;
 
 
