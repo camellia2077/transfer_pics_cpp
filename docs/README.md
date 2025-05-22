@@ -1,6 +1,8 @@
 # 程序介绍
 把图片风格化，c++实现
 图片处理部分用了这个库https://github.com/nothings/stb/tree/master
+![0_BlackOnWhite](https://github.com/user-attachments/assets/bf5bad5b-80c9-4170-9b1a-b67a133ff7a0)
+
 
 # 编译
 在MSYS2 MinGW64中
