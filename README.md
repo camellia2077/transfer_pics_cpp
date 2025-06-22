@@ -37,19 +37,22 @@
 ├── bash.sh                      # (或 build.sh) 自动化编译脚本，用于 MSYS2/MinGW 环境
 │
 ├── src/                         # 源码
-│   ├──main.cpp                 # 程序主入口，处理用户输入、调用核心流程
-│   │
-│   ├──config_handler.h        # 声明配置处理函数 (加载/写入)
-│   ├── onfig_handler.cpp      # 实现配置处理逻辑，使用 nlohmann/json 解析 JSON
-│   │
-│   ├──image_converter.h      # 声明图像到 ASCII 的转换逻辑
-│   ├──image_converter.cpp    # 实现核心转换算法，使用 stb_image
-│   │
-│   ├──ascii_renderer.h        # 声明 ASCII 到图像/HTML 的渲染逻辑
-│   ├── ascii_renderer.cpp      # 实现渲染逻辑，使用 stb_truetype 和 stb_image_write
-│   │
-│   └──common_types.h          # 定义共享数据结构 (Config, ColorScheme) 和通用工具函数
-│
+    ├──main.cpp                 # 程序主入口，处理用户输入、调用核心流程
+    │
+    ├──config_handler.h        # 声明配置处理函数 (加载/写入)
+    ├── onfig_handler.cpp      # 实现配置处理逻辑，使用 nlohmann/json 解析 JSON
+    │
+    ├──image_converter.h      # 声明图像到 ASCII 的转换逻辑
+    ├──image_converter.cpp    # 实现核心转换算法，使用 stb_image
+    │
+    ├──ascii_renderer.h        # 声明 ASCII 到图像/HTML 的渲染逻辑
+    ├── ascii_renderer.cpp      # 实现渲染逻辑，使用 stb_truetype 和 stb_image_write
+    │
+    └──common_types.h          # 定义共享数据结构 (Config, ColorScheme) 和通用工具函数
+    │
+    ├── stb_image.h        
+    ├── stb_truetype.h      
+    └── stb_image_write.h   
 ```
 
 ---
