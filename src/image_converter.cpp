@@ -1,5 +1,5 @@
 // image_converter.cpp
-//将输入的图像文件转换为字符画的中间表示形式，即 vector<vector<CharColorInfo>>。
+
 #include "image_converter.h"
 #include <iostream>
 #include <memory> // For unique_ptr

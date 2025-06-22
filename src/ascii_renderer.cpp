@@ -1,5 +1,6 @@
 // ascii_renderer.cpp
-//将 image_converter 生成的字符画中间表示
+//输出png或html
+
 #include "ascii_renderer.h"
 #include <iostream>
 #include <vector>

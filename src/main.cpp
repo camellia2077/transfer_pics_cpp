@@ -187,11 +187,13 @@ int main(int argc, char* argv[]) {
 
     path exePath = getExecutablePath(argc, argv);
     path exeDir = exePath.parent_path();
-    const string configFilename = "config.ini";
+    // *** MODIFICATION: Change config filename to .json ***
+    const string configFilename = "config.json";
     path configPathObj = exeDir / configFilename;
 
     if (!loadConfiguration(configPathObj, config)) {
-         cout << "Warning: Configuration file had parsing issues. Proceeding with loaded/default values." << endl;
+         // A more severe message because JSON parsing failure is less recoverable
+         cout << "Error: Configuration file could not be parsed correctly. Please check config.json. Proceeding with default values." << endl;
     }
 
     path potentialFontPath = exeDir / config.fontFilename;
@@ -281,7 +283,7 @@ int main(int argc, char* argv[]) {
         }
         else if (std::filesystem::is_directory(inputPath)) {
             cout << "\nInput is a directory. Processing images concurrently..." << endl;
-             string batchDirName = inputPath.filename().string() + "_" + std::to_string(config.targetWidth) + config.batchOutputSubDirSuffix; // Removed _PNG suffix for general batch output
+             string batchDirName = inputPath.filename().string() + "_" + std::to_string(config.targetWidth) + config.batchOutputSubDirSuffix;
              finalMainOutputDirPath = setupOutputDirectory(inputPath.parent_path(), batchDirName);
 
              if (finalMainOutputDirPath.empty()) {
