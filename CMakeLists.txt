@@ -1,85 +1,71 @@
-cmake_minimum_required(VERSION 3.12)
-project(AsciiGenerator LANGUAGES CXX)
+# CMake 最低版本要求
+cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+# 项目名称
+project(AsciiArtGenerator LANGUAGES CXX)
 
+# 设置 C++ 标准为 C++17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# --------------------------------------------------------------------------
-# 检查并准备启用链接时优化 (LTO / IPO)
-# --------------------------------------------------------------------------
-include(CheckIPOSupported)
-check_ipo_supported(RESULT ipo_supported OUTPUT output)
-if(ipo_supported)
-    message(STATUS "IPO / LTO is supported by toolchain, will be enabled for target.")
-else()
-    message(WARNING "IPO / LTO not supported by toolchain: ${output}")
-endif()
+# --- 查找依赖库 ---
 
-# --------------------------------------------------------------------------
-# 查找依赖库
-# --------------------------------------------------------------------------
+# 1. 查找 nlohmann_json 库
+find_package(nlohmann_json 3.2.0 REQUIRED)
+message(STATUS "Found nlohmann_json: ${nlohmann_json_VERSION}")
 
-# 查找线程库 (pthreads)
+# 2. 查找线程库
 find_package(Threads REQUIRED)
 
-# 查找 nlohmann_json 库 (for Modern C++)
-# MSYS2/MinGW 通常通过 `pacman -S mingw-w64-x86_64-nlohmann-json` 安装
-# 这会提供一个可以让 find_package 工作的配置文件
-find_package(nlohmann_json 3.2.0 REQUIRED)
-message(STATUS "Found nlohmann_json library.")
-
-
-# --------------------------------------------------------------------------
-# 添加可执行文件和源文件
-# --------------------------------------------------------------------------
-
-add_executable(ascii_generator
-    main.cpp
-    config_handler.cpp
-    image_converter.cpp
-    ascii_renderer.cpp
+# 3. 查找 stb 库 (作为纯头文件库)
+# 我们直接查找一个标志性的头文件来定位 include 目录
+find_path(STB_INCLUDE_DIR
+    NAMES stb/stb_image.h  # 查找 'stb/stb_image.h' 这个文件
+    # MSYS2 UCRT64 环境下的默认头文件搜索路径
+    HINTS /ucrt64/include
+    DOC "Path to the stb header directory"
 )
 
-# --------------------------------------------------------------------------
-# 为目标启用 LTO (IPO) 属性 (必须在 add_executable 之后)
-# --------------------------------------------------------------------------
-if(ipo_supported)
-    set_property(TARGET ascii_generator PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    message(STATUS "IPO / LTO enabled for target 'ascii_generator'.")
+if(STB_INCLUDE_DIR)
+    message(STATUS "Found stb headers in: ${STB_INCLUDE_DIR}")
+    # 创建一个名为 "STB" 的 INTERFACE 库。这是一个由我们项目定义的目标。
+    add_library(STB INTERFACE)
+    # 为我们自己创建的 "STB" 目标添加 include 目录。
+    # INTERFACE 关键字意味着任何链接到 STB 的目标都会自动继承这个 include 目录。
+    target_include_directories(STB INTERFACE ${STB_INCLUDE_DIR})
+else()
+    message(FATAL_ERROR "Could not find stb headers. Please ensure it's installed via 'pacman -S mingw-w64-ucrt-x86_64-stb'")
 endif()
 
-# --------------------------------------------------------------------------
-# 配置包含目录
-# --------------------------------------------------------------------------
 
-target_include_directories(ascii_generator PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR} # 确保找到本地头文件
-)
+# --- 定义可执行文件 ---
 
-# --------------------------------------------------------------------------
-# 链接库
-# --------------------------------------------------------------------------
+# 包含 src 目录
+include_directories(src)
 
-target_link_libraries(ascii_generator PRIVATE
-    # 链接线程库
-    Threads::Threads
-    # 链接 nlohmann_json
+# 搜集所有 src 目录下的 .cpp 源文件
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+# 添加可执行文件目标
+add_executable(ascii_generator ${SOURCES})
+
+
+# --- 链接依赖库到目标文件 ---
+
+target_link_libraries(ascii_generator
+    PRIVATE
     nlohmann_json::nlohmann_json
+    Threads::Threads
+    STB # 使用新的、正确的 INTERFACE 目标
 )
 
-# --------------------------------------------------------------------------
-# 添加编译选项 (可选)
-# --------------------------------------------------------------------------
-# 为 GCC/Clang (MinGW 使用 GCC) 添加优化选项
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(ascii_generator PRIVATE -O3 -Wall -march=native)
+# --- 平台特定设置 ---
+if(WIN32)
+    target_link_libraries(ascii_generator PRIVATE user32)
 endif()
 
-# --------------------------------------------------------------------------
-# 添加链接器选项以剥离调试信息
-# --------------------------------------------------------------------------
-if(CMAKE_BUILD_TYPE MATCHES "Release")
-    target_link_options(ascii_generator PRIVATE -s)
-    message(STATUS "Stripping debug symbols for target 'ascii_generator' in Release build.")
-endif()
+# --- 安装规则 (可选) ---
+install(TARGETS ascii_generator DESTINATION bin)
+
+# --- 输出信息 ---
+message(STATUS "Configuration finished. You can now build the project.")

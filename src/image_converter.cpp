@@ -6,9 +6,8 @@
 #include <cmath>
 #include <algorithm> // For std::max, std::min
 
-// Define STB_IMAGE_IMPLEMENTATION in exactly one .cpp file
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h" // Image loading functions
+
+#include <stb_image.h> // Image loading functions
 
 namespace { // Use an anonymous namespace for internal helper functions
 

@@ -1,8 +1,18 @@
 // main.cpp
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+
+#include <stb/stb_image.h>
+#include <stb/stb_truetype.h>
+#include <stb/stb_image_write.h>
+
 #include "common_types.h"     // Shared types (Config, ColorScheme, etc.)
 #include "config_handler.h"   // Configuration loading/saving
 #include "image_converter.h"  // Image to ASCII conversion function
 #include "ascii_renderer.h"   // ASCII to Image/HTML rendering function
+
+
 
 #include <iostream>
 #include <string>
