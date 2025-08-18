@@ -8,6 +8,14 @@ project(AsciiArtGenerator LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- 编译选项优化 ---
+# 开启 Release 模式下的编译优化
+# CMAKE_CXX_FLAGS_RELEASE 仅在构建类型为 Release 时生效
+# -Os: 优化代码大小
+# -s: 剥离可执行文件中的调试符号
+# -flto: 开启链接时优化，可以进一步优化代码
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Os -s")
+
 # --- 查找依赖库 ---
 
 # 1. 查找 nlohmann_json 库

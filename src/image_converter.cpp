@@ -7,7 +7,7 @@
 #include <algorithm> // For std::max, std::min
 
 
-#include <stb_image.h> // Image loading functions
+#include <stb/stb_image.h> // Image loading functions
 
 namespace { // Use an anonymous namespace for internal helper functions
 

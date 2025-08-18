@@ -10,9 +10,9 @@
 #include <fstream>   // For HTML file output
 #include <iomanip>   // For std::setw, std::setfill, std::hex for color conversion
 
-#include <stb_image_write.h> // For saving PNG
+#include <stb/stb_image_write.h> // For saving PNG
 
-#include <stb_truetype.h>    // For font rendering
+#include <stb/stb_truetype.h>    // For font rendering
 
 namespace { // Anonymous namespace for internal helpers
 
