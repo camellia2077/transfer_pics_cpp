@@ -29,15 +29,21 @@ endif()
 # --- 定义可执行文件和源文件 ---
 
 # 为每个模块创建源文件列表，并指定 src/ 路径
-file(GLOB CONFIG_SOURCES "src/config/*.cpp")
-file(GLOB CONVERSION_SOURCES "src/conversion/*.cpp")
-file(GLOB RENDERING_SOURCES "src/rendering/*.cpp")
-file(GLOB APP_SOURCES "src/app/*.cpp")
-file(GLOB CORE_SOURCES "src/core/*.cpp")
-file(GLOB UI_SOURCES "src/ui/*.cpp")
-file(GLOB UTILS_SOURCES "src/utils/*.cpp")
+set(CONFIG_SOURCES src/config/config_handler.cpp)
+set(CONVERSION_SOURCES src/conversion/image_converter.cpp)
+# --- START OF FIX ---
+# Explicitly list the rendering sources instead of using GLOB
+set(RENDERING_SOURCES
+    src/rendering/PngRenderer.cpp
+    src/rendering/HtmlRenderer.cpp
+)
+# --- END OF FIX ---
+set(APP_SOURCES src/app/application.cpp)
+set(CORE_SOURCES src/core/processing_orchestrator.cpp)
+set(UI_SOURCES src/ui/cli_handler.cpp)
+set(UTILS_SOURCES src/utils/PathManager.cpp)
 
-# 组合所有源文件，并指定 src/ 路径
+# 组合所有源文件
 set(SOURCES
     src/main.cpp
     ${CONFIG_SOURCES}
@@ -54,7 +60,6 @@ add_executable(ascii_generator ${SOURCES})
 # --- 自定义命令：在构建后复制资源文件 ---
 
 # 1. 复制 config.json
-# [cite_start]假设 config.json 在项目根目录的 config 文件夹中 [cite: 2]
 add_custom_command(TARGET ascii_generator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/config/config.json"
@@ -62,8 +67,7 @@ add_custom_command(TARGET ascii_generator POST_BUILD
     COMMENT "Copying config.json to build directory"
 )
 
-# 2. [新添加] 复制字体文件
-# 假设 SourceCodePro-Regular.ttf 在项目根目录的 fonts 文件夹中
+# 2. 复制字体文件
 add_custom_command(TARGET ascii_generator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/fonts/SourceCodePro-Regular.ttf"
@@ -73,10 +77,9 @@ add_custom_command(TARGET ascii_generator POST_BUILD
 
 
 # --- 为目标添加头文件包含目录 ---
-# 添加 src/ 下的子目录作为包含路径
 target_include_directories(ascii_generator
     PRIVATE
-    src # main.cpp 需要包含其他模块
+    src
     src/app
     src/common
     src/config

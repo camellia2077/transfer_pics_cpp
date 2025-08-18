@@ -49,7 +49,6 @@ struct Config {
     string finalFontPath = "";           // Resolved absolute/relative path used
     bool enableTiledRendering = false;   // Note: Tiling logic wasn't in the original rendering part
     int tileSize = 512;
-    string outputPngExtension = ".png";
     string imageOutputSubDirSuffix = "_ascii_output";
     string batchOutputSubDirSuffix = "_ascii_batch_output";
 
@@ -61,8 +60,6 @@ struct Config {
     // HTML Output Settings
     bool generateHtmlOutput = true;
     float htmlFontSizePt = 8.0f;         // Font size for HTML output in points
-    string outputHtmlExtension = ".html";
-    // Consider adding htmlFontName if different from PNG's fontFilename's base name
 };
 
 // --- Helper Functions (moved here for common use) ---

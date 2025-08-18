@@ -41,7 +41,7 @@ const std::unordered_map<std::string, ColorScheme>& getColorSchemeMap() {
 
 bool loadConfiguration(const std::filesystem::path& configPath, Config& config) {
     std::cout << "Info: Attempting to load configuration from '" << configPath.string() << "'..." << std::endl;
-    
+
     std::ifstream configFile(configPath);
     if (!configFile.is_open()) {
         std::cout << "Info: Config file '" << configPath.string() << "' not found. Using default values." << std::endl;
@@ -62,15 +62,13 @@ bool loadConfiguration(const std::filesystem::path& configPath, Config& config) 
         config.fontSize = settings.value("fontSize", config.fontSize);
         config.enableTiledRendering = settings.value("enableTiledRendering", config.enableTiledRendering);
         config.tileSize = settings.value("tileSize", config.tileSize);
-        config.outputPngExtension = settings.value("outputPngExtension", config.outputPngExtension);
         config.imageOutputSubDirSuffix = settings.value("imageOutputSubDirSuffix", config.imageOutputSubDirSuffix);
         config.batchOutputSubDirSuffix = settings.value("batchOutputSubDirSuffix", config.batchOutputSubDirSuffix);
-        
+
         // HTML 相关配置
         config.generateHtmlOutput = settings.value("generateHtmlOutput", config.generateHtmlOutput);
         config.htmlFontSizePt = settings.value("htmlFontSizePt", config.htmlFontSizePt);
-        config.outputHtmlExtension = settings.value("outputHtmlExtension", config.outputHtmlExtension);
-        
+
         // 处理颜色方案数组
         if (settings.contains("colorSchemes") && settings["colorSchemes"].is_array()) {
             config.schemesToGenerate.clear();
@@ -88,7 +86,7 @@ bool loadConfiguration(const std::filesystem::path& configPath, Config& config) 
                 }
             }
         }
-        
+
         // 如果加载后列表为空，则恢复默认值
         if (config.schemesToGenerate.empty()) {
             std::cerr << "Warning: No valid color schemes found in config. Reverting to defaults." << std::endl;
@@ -134,14 +132,12 @@ bool writeConfigToFile(const Config& config, const std::filesystem::path& output
     configFile << "fontSize = " << std::fixed << std::setprecision(2) << config.fontSize << " # Font size for PNG output" << std::endl;
     configFile << "enableTiledRendering = " << (config.enableTiledRendering ? "true" : "false") << std::endl;
     configFile << "tileSize = " << config.tileSize << std::endl;
-    configFile << "outputPngExtension = " << config.outputPngExtension << std::endl;
     configFile << "imageOutputSubDirSuffix = " << config.imageOutputSubDirSuffix << std::endl;
     configFile << "batchOutputSubDirSuffix = " << config.batchOutputSubDirSuffix << std::endl;
 
     // HTML Settings
     configFile << "generateHtmlOutput = " << (config.generateHtmlOutput ? "true" : "false") << std::endl;
     configFile << "htmlFontSizePt = " << std::fixed << std::setprecision(2) << config.htmlFontSizePt << " # Font size for HTML output in points" << std::endl;
-    configFile << "outputHtmlExtension = " << config.outputHtmlExtension << std::endl;
 
 
     configFile << "colorSchemes = ";
@@ -149,7 +145,7 @@ bool writeConfigToFile(const Config& config, const std::filesystem::path& output
         configFile << "# (None specified or loaded)" << std::endl;
     } else {
         for (size_t i = 0; i < config.schemesToGenerate.size(); ++i) {
-            configFile << colorSchemeToString(config.schemesToGenerate[i]); 
+            configFile << colorSchemeToString(config.schemesToGenerate[i]);
             if (i < config.schemesToGenerate.size() - 1) {
                 configFile << ", ";
             }
@@ -158,7 +154,7 @@ bool writeConfigToFile(const Config& config, const std::filesystem::path& output
     }
 
     configFile.close();
-    if (!configFile) { 
+    if (!configFile) {
          std::cerr << "Error: Failed to write all data or close the config output file: " << outputFilePath.string() << std::endl;
          return false;
     }

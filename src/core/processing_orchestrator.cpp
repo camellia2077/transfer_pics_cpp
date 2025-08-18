@@ -1,7 +1,8 @@
 #include "processing_orchestrator.h"
-#include "image_converter.h"
-#include "ascii_renderer.h"
-#include "config_handler.h"
+#include "conversion/image_converter.h"
+#include "rendering/PngRenderer.h"
+#include "rendering/HtmlRenderer.h"
+#include "config/config_handler.h"
 #include "utils/PathManager.h"
 
 #include <iostream>
@@ -12,7 +13,16 @@
 
 using namespace std::chrono;
 
-ProcessingOrchestrator::ProcessingOrchestrator(const Config& config) : m_config(config) {}
+ProcessingOrchestrator::ProcessingOrchestrator(const Config& config) : m_config(config) {
+    setupRenderers();
+}
+
+void ProcessingOrchestrator::setupRenderers() {
+    m_renderers.push_back(std::make_unique<PngRenderer>());
+    if (m_config.generateHtmlOutput) {
+        m_renderers.push_back(std::make_unique<HtmlRenderer>());
+    }
+}
 
 void ProcessingOrchestrator::process(const std::filesystem::path& inputPath) {
     if (!std::filesystem::exists(inputPath)) {
@@ -152,37 +162,14 @@ bool ProcessingOrchestrator::processImageFile(const std::filesystem::path& image
 
         std::cout << "  Processing scheme: " << colorSchemeToString(currentScheme) << std::endl;
 
-        // --- PNG Rendering ---
-        std::string pngOutputFilename = baseNameForOutput + m_config.outputPngExtension;
-        std::filesystem::path finalPngOutputPath = outputSubDirPath / pngOutputFilename;
-        std::cout << "    -> PNG: " << finalPngOutputPath.filename().string() << std::endl;
+        for (const auto& renderer : m_renderers) {
+            std::string outputFilename = baseNameForOutput + renderer->getOutputFileExtension();
+            std::filesystem::path finalOutputPath = outputSubDirPath / outputFilename;
 
-        bool pngRenderSuccess = renderAsciiToImage(
-            conversionResult.data,
-            finalPngOutputPath,
-            m_config.finalFontPath,
-            m_config.fontSize,
-            currentScheme
-        );
-        if (!pngRenderSuccess) {
-            std::cerr << "    Error: Failed to render/save PNG for scheme " << colorSchemeToString(currentScheme) << "." << std::endl;
-            allOutputsSuccessful = false;
-        }
+            std::cout << "    -> " << renderer->getOutputFileExtension().substr(1) << ": " << finalOutputPath.filename().string() << std::endl;
 
-        // --- HTML Rendering ---
-        if (m_config.generateHtmlOutput) {
-            std::string htmlOutputFilename = baseNameForOutput + m_config.outputHtmlExtension;
-            std::filesystem::path finalHtmlOutputPath = outputSubDirPath / htmlOutputFilename;
-            std::cout << "    -> HTML: " << finalHtmlOutputPath.filename().string() << std::endl;
-
-            bool htmlRenderSuccess = renderAsciiToHtml(
-                conversionResult.data,
-                finalHtmlOutputPath,
-                m_config, // Pass the full config
-                currentScheme
-            );
-            if (!htmlRenderSuccess) {
-                std::cerr << "    Error: Failed to render/save HTML for scheme " << colorSchemeToString(currentScheme) << "." << std::endl;
+            if (!renderer->render(conversionResult.data, finalOutputPath, m_config, currentScheme)) {
+                std::cerr << "    Error: Failed to render/save " << renderer->getOutputFileExtension() << " for scheme " << colorSchemeToString(currentScheme) << "." << std::endl;
                 allOutputsSuccessful = false;
             }
         }
