@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 # 项目名称
 project(AsciiArtGenerator LANGUAGES CXX)
 
-# --- 新增：启用 ccache  ---
+# --- 启用 ccache ---
 find_program(CCACHE_FOUND ccache)
 if(CCACHE_FOUND)
     message(STATUS "Found ccache: ${CCACHE_FOUND}")
@@ -27,13 +27,15 @@ message(STATUS "Found nlohmann_json: ${nlohmann_json_VERSION}")
 find_package(Threads REQUIRED)
 find_path(STB_INCLUDE_DIR NAMES stb/stb_image.h HINTS /ucrt64/include)
 
-if(STB_INCLUDE_DIR)
-    message(STATUS "Found stb headers in: ${STB_INCLUDE_DIR}")
-    add_library(STB INTERFACE)
-    target_include_directories(STB INTERFACE ${STB_INCLUDE_DIR})
-else()
+if(NOT STB_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find stb headers.")
 endif()
+message(STATUS "Found stb headers in: ${STB_INCLUDE_DIR}")
+
+# --- 新增：创建 stb 静态库 ---
+add_library(stb_lib STATIC src/common/stb_impl.cpp)
+# 让 stb_lib 目标可以找到 stb 的头文件
+target_include_directories(stb_lib PUBLIC ${STB_INCLUDE_DIR})
 
 
 # --- 定义可执行文件和源文件 ---
@@ -51,7 +53,7 @@ set(UTILS_SOURCES src/utils/PathManager.cpp)
 # 组合所有源文件
 set(SOURCES
     src/main.cpp
-    src/common/pch.cpp # <-- 新增：添加 pch.cpp 到源文件列表
+    src/common/pch.cpp
     ${CONFIG_SOURCES}
     ${CONVERSION_SOURCES}
     ${RENDERING_SOURCES}
@@ -76,12 +78,12 @@ target_include_directories(ascii_generator
     src/rendering
     src/ui
     src/utils
+    ${STB_INCLUDE_DIR} # 确保主程序也能找到 stb 头文件
 )
 
-# --- 新增：配置预编译头文件 ---
+# --- 配置预编译头文件 ---
 target_precompile_headers(ascii_generator
     PRIVATE
-    # CMake 会自动将这个头文件包含在所有源文件的编译中
     src/common/pch.h
 )
 
@@ -89,9 +91,9 @@ target_precompile_headers(ascii_generator
 # --- 链接依赖库到目标文件 ---
 target_link_libraries(ascii_generator
     PRIVATE
+    stb_lib # <-- 链接到我们新建的静态库
     nlohmann_json::nlohmann_json
     Threads::Threads
-    STB
 )
 
 # --- 平台特定设置 ---
