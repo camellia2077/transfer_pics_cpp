@@ -10,8 +10,12 @@
 #include <fstream>   // For HTML file output
 #include <iomanip>   // For std::setw, std::setfill, std::hex for color conversion
 
+// --- STB IMPLEMENTATION ---
+// 在这里定义两个宏
+#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h> // For saving PNG
 
+#define STB_TRUETYPE_IMPLEMENTATION
 #include <stb/stb_truetype.h>    // For font rendering
 
 namespace { // Anonymous namespace for internal helpers

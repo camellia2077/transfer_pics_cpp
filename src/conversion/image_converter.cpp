@@ -7,6 +7,9 @@
 #include <algorithm> // For std::max, std::min
 
 
+// --- STB IMPLEMENTATION ---
+// 在这里定义宏，这会把 stb_image.h 的实现代码包含进来
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h> // Image loading functions
 
 namespace { // Use an anonymous namespace for internal helper functions

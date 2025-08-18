@@ -32,6 +32,10 @@ endif()
 file(GLOB CONFIG_SOURCES "src/config/*.cpp")
 file(GLOB CONVERSION_SOURCES "src/conversion/*.cpp")
 file(GLOB RENDERING_SOURCES "src/rendering/*.cpp")
+file(GLOB APP_SOURCES "src/app/*.cpp")
+file(GLOB CORE_SOURCES "src/core/*.cpp")
+file(GLOB UI_SOURCES "src/ui/*.cpp")
+file(GLOB UTILS_SOURCES "src/utils/*.cpp")
 
 # 组合所有源文件，并指定 src/ 路径
 set(SOURCES
@@ -39,8 +43,11 @@ set(SOURCES
     ${CONFIG_SOURCES}
     ${CONVERSION_SOURCES}
     ${RENDERING_SOURCES}
+    ${APP_SOURCES}
+    ${CORE_SOURCES}
+    ${UI_SOURCES}
+    ${UTILS_SOURCES}
 )
-
 # 添加可执行文件目标
 add_executable(ascii_generator ${SOURCES})
 
@@ -66,15 +73,18 @@ add_custom_command(TARGET ascii_generator POST_BUILD
 
 
 # --- 为目标添加头文件包含目录 ---
-
 # 添加 src/ 下的子目录作为包含路径
 target_include_directories(ascii_generator
     PRIVATE
     src # main.cpp 需要包含其他模块
+    src/app
     src/common
     src/config
     src/conversion
+    src/core
     src/rendering
+    src/ui
+    src/utils
 )
 
 
